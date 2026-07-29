@@ -30,6 +30,7 @@ export interface CuttingLayout {
   height: number;
   placedCuts: PlacedCut[];
   wastePercentage: number;
+  name?: string;
 }
 
 export interface OptimizationResult {
