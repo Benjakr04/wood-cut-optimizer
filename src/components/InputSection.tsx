@@ -11,6 +11,16 @@ export interface InputSectionProps {
   onMaterialsChange: (materials: Material[]) => void;
 }
 
+const letterName = (index: number): string => {
+  let n = index;
+  let result = '';
+  do {
+    result = String.fromCharCode(65 + (n % 26)) + result;
+    n = Math.floor(n / 26) - 1;
+  } while (n >= 0);
+  return result;
+};
+
 export const InputSection: React.FC<InputSectionProps> = ({
   cuts,
   materials,
@@ -46,7 +56,7 @@ export const InputSection: React.FC<InputSectionProps> = ({
         width: parseFloat(newCutWidth),
         height: parseFloat(newCutHeight),
         quantity: parseInt(newCutQty, 10),
-        name: newCutName || `Corte ${cuts.length + 1}`,
+        name: newCutName || letterName(cuts.length),
       };
       onCutsChange([...cuts, newCut]);
       setNewCutWidth('');
@@ -135,7 +145,7 @@ export const InputSection: React.FC<InputSectionProps> = ({
 
   return (
     <View style={styles.container}>
-      {/* ===== CORTES ===== */}
+      {/* CORTES */}
       <View style={styles.section}>
         <View style={styles.sectionHeader}>
           <View style={styles.sectionIconWrap}>
@@ -190,10 +200,11 @@ export const InputSection: React.FC<InputSectionProps> = ({
           onName={setNewCutName}
           onAdd={addCut}
           label="Agregar Corte"
+          namePlaceholder={`Ej: ${letterName(cuts.length)}`}
         />
       </View>
 
-      {/* ===== MATERIALES ===== */}
+      {/* MATERIALES */}
       <View style={styles.section}>
         <View style={styles.sectionHeader}>
           <View style={styles.sectionIconWrap}>
@@ -248,6 +259,7 @@ export const InputSection: React.FC<InputSectionProps> = ({
           onName={setNewMatName}
           onAdd={addMaterial}
           label="Agregar Material"
+          namePlaceholder={`Ej: Material ${materials.length + 1}`}
         />
       </View>
     </View>
@@ -302,9 +314,20 @@ interface FormFieldsProps {
   onHeight: (v: string) => void;
   onQty: (v: string) => void;
   onName: (v: string) => void;
+  namePlaceholder?: string;
 }
 
-const FormFields: React.FC<FormFieldsProps> = ({ width, height, qty, name, onWidth, onHeight, onQty, onName }) => (
+const FormFields: React.FC<FormFieldsProps> = ({
+  width,
+  height,
+  qty,
+  name,
+  onWidth,
+  onHeight,
+  onQty,
+  onName,
+  namePlaceholder,
+}) => (
   <>
     <View style={styles.row}>
       <View style={styles.rowField}>
@@ -321,7 +344,7 @@ const FormFields: React.FC<FormFieldsProps> = ({ width, height, qty, name, onWid
       </View>
     </View>
     <Text style={styles.fieldLabel}>Nombre (opcional)</Text>
-    <TextInput value={name} onChangeText={onName} style={styles.input} placeholder="Ej: Tablilla lateral" placeholderTextColor={colors.textMuted} />
+    <TextInput value={name} onChangeText={onName} style={styles.input} placeholder={namePlaceholder || 'Nombre'} placeholderTextColor={colors.textMuted} />
   </>
 );
 

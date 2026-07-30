@@ -1,8 +1,8 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import Svg, { Rect, Text as SvgText } from 'react-native-svg';
 import { Ionicons } from '@expo/vector-icons';
-import { CuttingLayout } from '../algorithm/packing';
+import { CuttingLayout, PlacedCut } from '../algorithm/packing';
 import { colors, spacing, radius, shadow } from '../theme/theme';
 
 export interface CuttingVisualizationProps {
@@ -20,7 +20,15 @@ const COLORS = [
   '#85C1E2',
 ];
 
+interface SelectedInfo {
+  cut: PlacedCut;
+  materialLabel: string;
+  color: string;
+}
+
 export const CuttingVisualization: React.FC<CuttingVisualizationProps> = ({ layouts }) => {
+  const [selected, setSelected] = useState<SelectedInfo | null>(null);
+
   if (layouts.length === 0) {
     return (
       <View style={styles.emptyContainer}>
@@ -32,6 +40,27 @@ export const CuttingVisualization: React.FC<CuttingVisualizationProps> = ({ layo
 
   return (
     <View style={styles.container}>
+      {selected && (
+        <View style={styles.detailCard}>
+          <View style={styles.detailHeader}>
+            <View style={[styles.detailColorDot, { backgroundColor: selected.color }]} />
+            <Text style={styles.detailTitle}>{selected.cut.name}</Text>
+            <Ionicons
+              name="close-circle"
+              size={20}
+              color={colors.textMuted}
+              onPress={() => setSelected(null)}
+            />
+          </View>
+          <View style={styles.detailGrid}>
+            <DetailField label="Medidas" value={`${selected.cut.width}×${selected.cut.height}mm`} />
+            <DetailField label="Área" value={`${((selected.cut.width * selected.cut.height) / 1e6).toFixed(3)} m²`} />
+            <DetailField label="Posición" value={`X: ${selected.cut.x} / Y: ${selected.cut.y}`} />
+            <DetailField label="Material" value={selected.materialLabel} />
+          </View>
+        </View>
+      )}
+
       {layouts.map((layout, layoutIndex) => {
         const maxWidth = 340;
         const maxHeight = 480;
@@ -46,9 +75,7 @@ export const CuttingVisualization: React.FC<CuttingVisualizationProps> = ({ layo
                 <Ionicons name="square-outline" size={16} color={colors.primaryDark} />
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={styles.layoutTitle}>
-                  Material {layoutIndex + 1}
-                </Text>
+                <Text style={styles.layoutTitle}>{layout.materialLabel}</Text>
                 <Text style={styles.layoutInfo}>
                   {layout.width}×{layout.height}mm
                 </Text>
@@ -78,40 +105,58 @@ export const CuttingVisualization: React.FC<CuttingVisualizationProps> = ({ layo
 
                 {layout.placedCuts.map((cut, cutIndex) => {
                   const color = COLORS[cutIndex % COLORS.length];
+                  const renderedW = cut.width * scale;
+                  const renderedH = cut.height * scale;
+                  const showLabel = renderedW >= 34 && renderedH >= 18;
+                  const labelFontSize = Math.min(28, 13 / scale);
+                  const isSelected = selected?.cut.x === cut.x && selected?.cut.y === cut.y && selected?.cut.name === cut.name;
+
                   return (
-                    <g key={`${layout.materialId}-${cutIndex}`}>
+                    <React.Fragment key={`${layout.materialId}-${cutIndex}`}>
                       <Rect
                         x={cut.x}
                         y={cut.y}
                         width={cut.width}
                         height={cut.height}
                         fill={color}
-                        stroke={colors.dark}
-                        strokeWidth="1"
-                        opacity="0.85"
+                        stroke={isSelected ? '#fff' : colors.dark}
+                        strokeWidth={isSelected ? 3 / scale : 1}
+                        opacity="0.9"
+                        onPress={() =>
+                          setSelected({ cut, materialLabel: layout.materialLabel, color })
+                        }
                       />
-                      <SvgText
-                        x={cut.x + cut.width / 2}
-                        y={cut.y + cut.height / 2 + 5}
-                        textAnchor="middle"
-                        fontSize="10"
-                        fill="#fff"
-                        fontWeight="bold"
-                      >
-                        {cut.width}×{cut.height}
-                      </SvgText>
-                    </g>
+                      {showLabel && (
+                        <SvgText
+                          x={cut.x + cut.width / 2}
+                          y={cut.y + cut.height / 2 + labelFontSize / 3}
+                          textAnchor="middle"
+                          fontSize={labelFontSize}
+                          fill="#fff"
+                          fontWeight="bold"
+                          onPress={() =>
+                            setSelected({ cut, materialLabel: layout.materialLabel, color })
+                          }
+                        >
+                          {cut.width}×{cut.height}
+                        </SvgText>
+                      )}
+                    </React.Fragment>
                   );
                 })}
               </Svg>
             </View>
+
+            <Text style={styles.tapHint}>Tocá un corte para ver más detalles</Text>
 
             <View style={styles.cutsList}>
               <Text style={styles.cutsListTitle}>Cortes en este material</Text>
               {layout.placedCuts.map((cut, idx) => (
                 <View key={idx} style={styles.cutListItem}>
                   <View style={[styles.colorDot, { backgroundColor: COLORS[idx % COLORS.length] }]} />
-                  <Text style={styles.cutListText}>{cut.width}×{cut.height}mm</Text>
+                  <Text style={styles.cutListText}>
+                    {cut.name} · {cut.width}×{cut.height}mm
+                  </Text>
                 </View>
               ))}
             </View>
@@ -121,6 +166,13 @@ export const CuttingVisualization: React.FC<CuttingVisualizationProps> = ({ layo
     </View>
   );
 };
+
+const DetailField: React.FC<{ label: string; value: string }> = ({ label, value }) => (
+  <View style={styles.detailField}>
+    <Text style={styles.detailFieldLabel}>{label}</Text>
+    <Text style={styles.detailFieldValue}>{value}</Text>
+  </View>
+);
 
 const styles = StyleSheet.create({
   container: {
@@ -136,6 +188,52 @@ const styles = StyleSheet.create({
   emptyText: {
     fontSize: 14,
     color: colors.textMuted,
+  },
+  detailCard: {
+    backgroundColor: colors.dark,
+    borderRadius: radius.lg,
+    padding: spacing.md,
+    marginBottom: spacing.lg,
+    ...shadow.raised,
+  },
+  detailHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    marginBottom: spacing.md,
+  },
+  detailColorDot: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+  },
+  detailTitle: {
+    flex: 1,
+    fontSize: 15,
+    fontWeight: '700',
+    color: colors.textOnDark,
+  },
+  detailGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.sm,
+  },
+  detailField: {
+    width: '47%',
+    backgroundColor: colors.darkAlt,
+    borderRadius: radius.sm,
+    padding: spacing.sm,
+  },
+  detailFieldLabel: {
+    fontSize: 10,
+    color: colors.textOnDarkMuted,
+    fontWeight: '600',
+    marginBottom: 2,
+  },
+  detailFieldValue: {
+    fontSize: 13,
+    color: colors.textOnDark,
+    fontWeight: '700',
   },
   layoutCard: {
     marginBottom: spacing.lg,
@@ -184,11 +282,18 @@ const styles = StyleSheet.create({
   },
   svgWrapper: {
     alignItems: 'center',
-    marginBottom: spacing.md,
+    marginBottom: spacing.sm,
   },
   svg: {
     backgroundColor: colors.surface,
     borderRadius: radius.sm,
+  },
+  tapHint: {
+    fontSize: 11,
+    color: colors.textMuted,
+    textAlign: 'center',
+    marginBottom: spacing.md,
+    fontStyle: 'italic',
   },
   cutsList: {
     backgroundColor: colors.surfaceAlt,
