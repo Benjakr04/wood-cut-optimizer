@@ -53,8 +53,16 @@ export const CuttingVisualization: React.FC<CuttingVisualizationProps> = ({ layo
             />
           </View>
           <View style={styles.detailGrid}>
-            <DetailField label="Medidas" value={`${selected.cut.width}×${selected.cut.height}mm`} />
-            <DetailField label="Área" value={`${((selected.cut.width * selected.cut.height) / 1e6).toFixed(3)} m²`} />
+            <DetailField
+              label="Medidas"
+              value={`${selected.cut.originalWidth}×${selected.cut.originalHeight}mm${
+                selected.cut.rotated ? ' (girado 90°)' : ''
+              }`}
+            />
+            <DetailField
+              label="Área"
+              value={`${((selected.cut.width * selected.cut.height) / 1e6).toFixed(3)} m²`}
+            />
             <DetailField label="Posición" value={`X: ${selected.cut.x} / Y: ${selected.cut.y}`} />
             <DetailField label="Material" value={selected.materialLabel} />
           </View>
@@ -109,7 +117,10 @@ export const CuttingVisualization: React.FC<CuttingVisualizationProps> = ({ layo
                   const renderedH = cut.height * scale;
                   const showLabel = renderedW >= 34 && renderedH >= 18;
                   const labelFontSize = Math.min(28, 13 / scale);
-                  const isSelected = selected?.cut.x === cut.x && selected?.cut.y === cut.y && selected?.cut.name === cut.name;
+                  const isSelected =
+                    selected?.cut.x === cut.x &&
+                    selected?.cut.y === cut.y &&
+                    selected?.cut.name === cut.name;
 
                   return (
                     <React.Fragment key={`${layout.materialId}-${cutIndex}`}>
@@ -138,7 +149,8 @@ export const CuttingVisualization: React.FC<CuttingVisualizationProps> = ({ layo
                             setSelected({ cut, materialLabel: layout.materialLabel, color })
                           }
                         >
-                          {cut.width}×{cut.height}
+                          {cut.rotated ? '↻ ' : ''}
+                          {cut.originalWidth}×{cut.originalHeight}
                         </SvgText>
                       )}
                     </React.Fragment>
@@ -155,7 +167,8 @@ export const CuttingVisualization: React.FC<CuttingVisualizationProps> = ({ layo
                 <View key={idx} style={styles.cutListItem}>
                   <View style={[styles.colorDot, { backgroundColor: COLORS[idx % COLORS.length] }]} />
                   <Text style={styles.cutListText}>
-                    {cut.name} · {cut.width}×{cut.height}mm
+                    {cut.name} · {cut.originalWidth}×{cut.originalHeight}mm
+                    {cut.rotated ? ' ↻' : ''}
                   </Text>
                 </View>
               ))}
