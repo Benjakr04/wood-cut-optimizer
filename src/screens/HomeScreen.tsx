@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
 import { View, Text, TouchableOpacity, ScrollView, StyleSheet, Alert } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { Cut, Material, optimizeCuts, OptimizationResult } from '../algorithm/packing';
 import { InputSection } from '../components/InputSection';
 import { CuttingVisualization } from '../components/CuttingVisualization';
-import { colors, spacing, radius, shadow } from '../theme/theme';
+import { colors, spacing, radius, shadow, gradients } from '../theme/theme';
 
 const KERF_OPTIONS = [1, 2, 3, 4, 5];
 
@@ -47,17 +48,18 @@ export const HomeScreen: React.FC = () => {
     setResult(null);
   };
 
+  const utilization = result ? Math.max(0, 100 - result.totalWaste) : 0;
+
   return (
     <View style={styles.container}>
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        {/* HEADER */}
-        <View style={styles.header}>
+        <LinearGradient colors={gradients.header} style={styles.header}>
           <View style={styles.headerIconWrap}>
             <Ionicons name="cut" size={26} color={colors.primary} />
           </View>
           <Text style={styles.title}>Wood Cut Optimizer</Text>
           <Text style={styles.subtitle}>Optimizá tus cortes de madera</Text>
-        </View>
+        </LinearGradient>
 
         {/* KERF */}
         <View style={styles.kerfCard}>
@@ -95,11 +97,13 @@ export const HomeScreen: React.FC = () => {
 
         {/* BOTONES */}
         <View style={styles.buttonsContainer}>
-          <TouchableOpacity onPress={handleOptimize} style={styles.optimizeBtn} activeOpacity={0.85}>
-            <Ionicons name={result ? 'refresh' : 'flash'} size={18} color="#fff" />
-            <Text style={styles.optimizeBtnText}>
-              {result ? 'Re-optimizar' : 'Optimizar Cortes'}
-            </Text>
+          <TouchableOpacity onPress={handleOptimize} activeOpacity={0.88}>
+            <LinearGradient colors={gradients.primaryButton} style={styles.optimizeBtn}>
+              <Ionicons name={result ? 'refresh' : 'flash'} size={18} color="#fff" />
+              <Text style={styles.optimizeBtnText}>
+                {result ? 'Re-optimizar' : 'Optimizar Cortes'}
+              </Text>
+            </LinearGradient>
           </TouchableOpacity>
 
           {(cuts.length > 0 || materials.length > 0) && (
@@ -113,7 +117,7 @@ export const HomeScreen: React.FC = () => {
         {/* RESULTADOS */}
         {result && (
           <View style={styles.resultSection}>
-            <View style={styles.resultHeader}>
+            <LinearGradient colors={gradients.darkCard} style={styles.resultHeader}>
               <View style={styles.resultTitleRow}>
                 <Ionicons name="stats-chart" size={18} color={colors.textOnDark} />
                 <Text style={styles.resultTitle}>Resultado de la Optimización</Text>
@@ -136,7 +140,17 @@ export const HomeScreen: React.FC = () => {
                   value={`${result.totalWaste.toFixed(1)}%`}
                 />
               </View>
-            </View>
+
+              <View style={styles.utilizationBlock}>
+                <View style={styles.utilizationLabelRow}>
+                  <Text style={styles.utilizationLabel}>Aprovechamiento del material</Text>
+                  <Text style={styles.utilizationValue}>{utilization.toFixed(1)}%</Text>
+                </View>
+                <View style={styles.progressTrack}>
+                  <View style={[styles.progressFill, { width: `${Math.min(100, utilization)}%` }]} />
+                </View>
+              </View>
+            </LinearGradient>
 
             {result.warnings.length > 0 && (
               <View style={styles.warningsBox}>
@@ -174,7 +188,6 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   header: {
-    backgroundColor: colors.dark,
     paddingVertical: spacing.xl,
     paddingHorizontal: spacing.lg,
     alignItems: 'center',
@@ -268,7 +281,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     gap: spacing.sm,
-    backgroundColor: colors.primary,
     paddingVertical: 15,
     borderRadius: radius.md,
     ...shadow.raised,
@@ -298,7 +310,6 @@ const styles = StyleSheet.create({
     marginTop: spacing.sm,
   },
   resultHeader: {
-    backgroundColor: colors.dark,
     paddingVertical: spacing.lg,
     paddingHorizontal: spacing.lg,
   },
@@ -334,6 +345,35 @@ const styles = StyleSheet.create({
     fontSize: 10,
     color: colors.textOnDarkMuted,
     fontWeight: '600',
+  },
+  utilizationBlock: {
+    marginTop: spacing.lg,
+  },
+  utilizationLabelRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 6,
+  },
+  utilizationLabel: {
+    fontSize: 11,
+    color: colors.textOnDarkMuted,
+    fontWeight: '600',
+  },
+  utilizationValue: {
+    fontSize: 12,
+    color: colors.textOnDark,
+    fontWeight: '800',
+  },
+  progressTrack: {
+    height: 8,
+    borderRadius: radius.full,
+    backgroundColor: 'rgba(255,255,255,0.12)',
+    overflow: 'hidden',
+  },
+  progressFill: {
+    height: '100%',
+    borderRadius: radius.full,
+    backgroundColor: colors.primary,
   },
   warningsBox: {
     backgroundColor: colors.dangerLight,

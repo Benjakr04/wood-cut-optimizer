@@ -3,6 +3,7 @@ import { View, Text, TextInput, TouchableOpacity, StyleSheet } from 'react-nativ
 import { Ionicons } from '@expo/vector-icons';
 import { Cut, Material } from '../algorithm/packing';
 import { colors, spacing, radius, shadow } from '../theme/theme';
+import { colorForPiece } from '../utils/pieceColor';
 
 export interface InputSectionProps {
   cuts: Cut[];
@@ -10,6 +11,8 @@ export interface InputSectionProps {
   onCutsChange: (cuts: Cut[]) => void;
   onMaterialsChange: (materials: Material[]) => void;
 }
+
+type Tab = 'cuts' | 'materials';
 
 const letterName = (index: number): string => {
   let n = index;
@@ -27,6 +30,8 @@ export const InputSection: React.FC<InputSectionProps> = ({
   onCutsChange,
   onMaterialsChange,
 }) => {
+  const [tab, setTab] = useState<Tab>('cuts');
+
   const [newCutWidth, setNewCutWidth] = useState('');
   const [newCutHeight, setNewCutHeight] = useState('');
   const [newCutQty, setNewCutQty] = useState('');
@@ -145,148 +150,181 @@ export const InputSection: React.FC<InputSectionProps> = ({
 
   return (
     <View style={styles.container}>
-      {/* CORTES */}
-      <View style={styles.section}>
-        <View style={styles.sectionHeader}>
-          <View style={styles.sectionIconWrap}>
-            <Ionicons name="cut-outline" size={18} color={colors.primary} />
-          </View>
-          <Text style={styles.title}>Cortes Necesarios</Text>
-        </View>
-
-        {cuts.length === 0 && (
-          <View style={styles.emptyState}>
-            <Ionicons name="cut-outline" size={28} color={colors.textMuted} />
-            <Text style={styles.emptyText}>Todavía no agregaste ningún corte</Text>
-          </View>
-        )}
-
-        {cuts.map((cut) =>
-          editingCutId === cut.id ? (
-            <EditBox
-              key={cut.id}
-              width={editCutWidth}
-              height={editCutHeight}
-              qty={editCutQty}
-              name={editCutName}
-              onWidth={setEditCutWidth}
-              onHeight={setEditCutHeight}
-              onQty={setEditCutQty}
-              onName={setEditCutName}
-              onSave={saveEditCut}
-              onCancel={() => setEditingCutId(null)}
-            />
-          ) : (
-            <ItemCard
-              key={cut.id}
-              name={cut.name || ''}
-              width={cut.width}
-              height={cut.height}
-              quantity={cut.quantity}
-              onEdit={() => startEditCut(cut)}
-              onRemove={() => removeCut(cut.id)}
-            />
-          )
-        )}
-
-        <AddForm
-          width={newCutWidth}
-          height={newCutHeight}
-          qty={newCutQty}
-          name={newCutName}
-          onWidth={setNewCutWidth}
-          onHeight={setNewCutHeight}
-          onQty={setNewCutQty}
-          onName={setNewCutName}
-          onAdd={addCut}
-          label="Agregar Corte"
-          namePlaceholder={`Ej: ${letterName(cuts.length)}`}
+      <View style={styles.tabBar}>
+        <TabButton
+          icon="cut-outline"
+          label="Cortes"
+          count={cuts.length}
+          active={tab === 'cuts'}
+          onPress={() => setTab('cuts')}
+        />
+        <TabButton
+          icon="layers-outline"
+          label="Materiales"
+          count={materials.length}
+          active={tab === 'materials'}
+          onPress={() => setTab('materials')}
         />
       </View>
 
-      {/* MATERIALES */}
-      <View style={styles.section}>
-        <View style={styles.sectionHeader}>
-          <View style={styles.sectionIconWrap}>
-            <Ionicons name="layers-outline" size={18} color={colors.primary} />
-          </View>
-          <Text style={styles.title}>Materiales Disponibles</Text>
+      {tab === 'cuts' ? (
+        <View style={styles.section}>
+          {cuts.length === 0 && (
+            <EmptyState icon="cut-outline" text="Todavía no agregaste ningún corte" />
+          )}
+
+          {cuts.map((cut) =>
+            editingCutId === cut.id ? (
+              <EditBox
+                key={cut.id}
+                width={editCutWidth}
+                height={editCutHeight}
+                qty={editCutQty}
+                name={editCutName}
+                onWidth={setEditCutWidth}
+                onHeight={setEditCutHeight}
+                onQty={setEditCutQty}
+                onName={setEditCutName}
+                onSave={saveEditCut}
+                onCancel={() => setEditingCutId(null)}
+              />
+            ) : (
+              <ItemCard
+                key={cut.id}
+                name={cut.name || ''}
+                width={cut.width}
+                height={cut.height}
+                quantity={cut.quantity}
+                color={colorForPiece(cut.name || '', cut.width, cut.height)}
+                onEdit={() => startEditCut(cut)}
+                onRemove={() => removeCut(cut.id)}
+              />
+            )
+          )}
+
+          <AddForm
+            width={newCutWidth}
+            height={newCutHeight}
+            qty={newCutQty}
+            name={newCutName}
+            onWidth={setNewCutWidth}
+            onHeight={setNewCutHeight}
+            onQty={setNewCutQty}
+            onName={setNewCutName}
+            onAdd={addCut}
+            label="Agregar Corte"
+            namePlaceholder={`Ej: ${letterName(cuts.length)}`}
+          />
         </View>
+      ) : (
+        <View style={styles.section}>
+          {materials.length === 0 && (
+            <EmptyState icon="cube-outline" text="Todavía no agregaste ningún material" />
+          )}
 
-        {materials.length === 0 && (
-          <View style={styles.emptyState}>
-            <Ionicons name="cube-outline" size={28} color={colors.textMuted} />
-            <Text style={styles.emptyText}>Todavía no agregaste ningún material</Text>
-          </View>
-        )}
+          {materials.map((mat) =>
+            editingMatId === mat.id ? (
+              <EditBox
+                key={mat.id}
+                width={editMatWidth}
+                height={editMatHeight}
+                qty={editMatQty}
+                name={editMatName}
+                onWidth={setEditMatWidth}
+                onHeight={setEditMatHeight}
+                onQty={setEditMatQty}
+                onName={setEditMatName}
+                onSave={saveEditMaterial}
+                onCancel={() => setEditingMatId(null)}
+              />
+            ) : (
+              <ItemCard
+                key={mat.id}
+                name={mat.name || ''}
+                width={mat.width}
+                height={mat.height}
+                quantity={mat.quantity}
+                color={colors.primary}
+                onEdit={() => startEditMaterial(mat)}
+                onRemove={() => removeMaterial(mat.id)}
+              />
+            )
+          )}
 
-        {materials.map((mat) =>
-          editingMatId === mat.id ? (
-            <EditBox
-              key={mat.id}
-              width={editMatWidth}
-              height={editMatHeight}
-              qty={editMatQty}
-              name={editMatName}
-              onWidth={setEditMatWidth}
-              onHeight={setEditMatHeight}
-              onQty={setEditMatQty}
-              onName={setEditMatName}
-              onSave={saveEditMaterial}
-              onCancel={() => setEditingMatId(null)}
-            />
-          ) : (
-            <ItemCard
-              key={mat.id}
-              name={mat.name || ''}
-              width={mat.width}
-              height={mat.height}
-              quantity={mat.quantity}
-              onEdit={() => startEditMaterial(mat)}
-              onRemove={() => removeMaterial(mat.id)}
-            />
-          )
-        )}
-
-        <AddForm
-          width={newMatWidth}
-          height={newMatHeight}
-          qty={newMatQty}
-          name={newMatName}
-          onWidth={setNewMatWidth}
-          onHeight={setNewMatHeight}
-          onQty={setNewMatQty}
-          onName={setNewMatName}
-          onAdd={addMaterial}
-          label="Agregar Material"
-          namePlaceholder={`Ej: Material ${materials.length + 1}`}
-        />
-      </View>
+          <AddForm
+            width={newMatWidth}
+            height={newMatHeight}
+            qty={newMatQty}
+            name={newMatName}
+            onWidth={setNewMatWidth}
+            onHeight={setNewMatHeight}
+            onQty={setNewMatQty}
+            onName={setNewMatName}
+            onAdd={addMaterial}
+            label="Agregar Material"
+            namePlaceholder={`Ej: Material ${materials.length + 1}`}
+          />
+        </View>
+      )}
     </View>
   );
 };
 
 /* ---------- Subcomponentes internos ---------- */
 
+interface TabButtonProps {
+  icon: any;
+  label: string;
+  count: number;
+  active: boolean;
+  onPress: () => void;
+}
+
+const TabButton: React.FC<TabButtonProps> = ({ icon, label, count, active, onPress }) => (
+  <TouchableOpacity
+    onPress={onPress}
+    style={[styles.tabBtn, active && styles.tabBtnActive]}
+    activeOpacity={0.85}
+  >
+    <Ionicons name={icon} size={16} color={active ? '#fff' : colors.textMuted} />
+    <Text style={[styles.tabBtnText, active && styles.tabBtnTextActive]}>{label}</Text>
+    {count > 0 && (
+      <View style={[styles.tabBadge, active && styles.tabBadgeActive]}>
+        <Text style={[styles.tabBadgeText, active && styles.tabBadgeTextActive]}>{count}</Text>
+      </View>
+    )}
+  </TouchableOpacity>
+);
+
+const EmptyState: React.FC<{ icon: any; text: string }> = ({ icon, text }) => (
+  <View style={styles.emptyState}>
+    <View style={styles.emptyIconWrap}>
+      <Ionicons name={icon} size={26} color={colors.textMuted} />
+    </View>
+    <Text style={styles.emptyText}>{text}</Text>
+  </View>
+);
+
 interface ItemCardProps {
   name: string;
   width: number;
   height: number;
   quantity: number;
+  color: string;
   onEdit: () => void;
   onRemove: () => void;
 }
 
-const ItemCard: React.FC<ItemCardProps> = ({ name, width, height, quantity, onEdit, onRemove }) => (
+const ItemCard: React.FC<ItemCardProps> = ({ name, width, height, quantity, color, onEdit, onRemove }) => (
   <View style={styles.itemCard}>
-    <View style={styles.itemIconWrap}>
-      <Ionicons name="square-outline" size={20} color={colors.primaryDark} />
-    </View>
+    <View style={[styles.itemColorBar, { backgroundColor: color }]} />
     <View style={styles.itemInfo}>
-      <Text style={styles.itemName}>{name}</Text>
+      <Text style={styles.itemName} numberOfLines={1}>
+        {name}
+      </Text>
       <View style={styles.itemBadgeRow}>
         <View style={styles.dimBadge}>
-          <Ionicons name="resize-outline" size={12} color={colors.textMuted} />
+          <Ionicons name="resize-outline" size={11} color={colors.textMuted} />
           <Text style={styles.dimBadgeText}>{width}×{height}mm</Text>
         </View>
         <View style={styles.qtyBadge}>
@@ -296,10 +334,10 @@ const ItemCard: React.FC<ItemCardProps> = ({ name, width, height, quantity, onEd
     </View>
     <View style={styles.itemActions}>
       <TouchableOpacity onPress={onEdit} style={styles.iconBtnEdit} hitSlop={8}>
-        <Ionicons name="create-outline" size={17} color={colors.info} />
+        <Ionicons name="create-outline" size={16} color={colors.info} />
       </TouchableOpacity>
       <TouchableOpacity onPress={onRemove} style={styles.iconBtnDelete} hitSlop={8}>
-        <Ionicons name="trash-outline" size={17} color={colors.danger} />
+        <Ionicons name="trash-outline" size={16} color={colors.danger} />
       </TouchableOpacity>
     </View>
   </View>
@@ -327,26 +365,64 @@ const FormFields: React.FC<FormFieldsProps> = ({
   onQty,
   onName,
   namePlaceholder,
-}) => (
-  <>
-    <View style={styles.row}>
-      <View style={styles.rowField}>
-        <Text style={styles.fieldLabel}>Ancho (mm)</Text>
-        <TextInput value={width} onChangeText={onWidth} keyboardType="decimal-pad" style={styles.input} placeholder="0" placeholderTextColor={colors.textMuted} />
+}) => {
+  const [focused, setFocused] = useState<string | null>(null);
+  return (
+    <>
+      <View style={styles.row}>
+        <View style={styles.rowField}>
+          <Text style={styles.fieldLabel}>Ancho (mm)</Text>
+          <TextInput
+            value={width}
+            onChangeText={onWidth}
+            keyboardType="decimal-pad"
+            style={[styles.input, focused === 'w' && styles.inputFocused]}
+            placeholder="0"
+            placeholderTextColor={colors.textMuted}
+            onFocus={() => setFocused('w')}
+            onBlur={() => setFocused(null)}
+          />
+        </View>
+        <View style={styles.rowField}>
+          <Text style={styles.fieldLabel}>Alto (mm)</Text>
+          <TextInput
+            value={height}
+            onChangeText={onHeight}
+            keyboardType="decimal-pad"
+            style={[styles.input, focused === 'h' && styles.inputFocused]}
+            placeholder="0"
+            placeholderTextColor={colors.textMuted}
+            onFocus={() => setFocused('h')}
+            onBlur={() => setFocused(null)}
+          />
+        </View>
+        <View style={styles.rowFieldSmall}>
+          <Text style={styles.fieldLabel}>Cant.</Text>
+          <TextInput
+            value={qty}
+            onChangeText={onQty}
+            keyboardType="number-pad"
+            style={[styles.input, focused === 'q' && styles.inputFocused]}
+            placeholder="0"
+            placeholderTextColor={colors.textMuted}
+            onFocus={() => setFocused('q')}
+            onBlur={() => setFocused(null)}
+          />
+        </View>
       </View>
-      <View style={styles.rowField}>
-        <Text style={styles.fieldLabel}>Alto (mm)</Text>
-        <TextInput value={height} onChangeText={onHeight} keyboardType="decimal-pad" style={styles.input} placeholder="0" placeholderTextColor={colors.textMuted} />
-      </View>
-      <View style={styles.rowFieldSmall}>
-        <Text style={styles.fieldLabel}>Cant.</Text>
-        <TextInput value={qty} onChangeText={onQty} keyboardType="number-pad" style={styles.input} placeholder="0" placeholderTextColor={colors.textMuted} />
-      </View>
-    </View>
-    <Text style={styles.fieldLabel}>Nombre (opcional)</Text>
-    <TextInput value={name} onChangeText={onName} style={styles.input} placeholder={namePlaceholder || 'Nombre'} placeholderTextColor={colors.textMuted} />
-  </>
-);
+      <Text style={styles.fieldLabel}>Nombre (opcional)</Text>
+      <TextInput
+        value={name}
+        onChangeText={onName}
+        style={[styles.input, focused === 'n' && styles.inputFocused]}
+        placeholder={namePlaceholder || 'Nombre'}
+        placeholderTextColor={colors.textMuted}
+        onFocus={() => setFocused('n')}
+        onBlur={() => setFocused(null)}
+      />
+    </>
+  );
+};
 
 interface AddFormProps extends FormFieldsProps {
   onAdd: () => void;
@@ -355,6 +431,10 @@ interface AddFormProps extends FormFieldsProps {
 
 const AddForm: React.FC<AddFormProps> = ({ onAdd, label, ...fieldProps }) => (
   <View style={styles.addFormBox}>
+    <View style={styles.addFormHeader}>
+      <Ionicons name="add-circle-outline" size={14} color={colors.primaryDark} />
+      <Text style={styles.addFormHeaderText}>{label}</Text>
+    </View>
     <FormFields {...fieldProps} />
     <TouchableOpacity onPress={onAdd} style={styles.addBtn} activeOpacity={0.85}>
       <Ionicons name="add-circle" size={18} color="#fff" />
@@ -395,37 +475,74 @@ const styles = StyleSheet.create({
     padding: spacing.lg,
     backgroundColor: colors.background,
   },
+  tabBar: {
+    flexDirection: 'row',
+    backgroundColor: colors.surfaceAlt,
+    borderRadius: radius.md,
+    padding: 4,
+    marginBottom: spacing.lg,
+    gap: 4,
+  },
+  tabBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 6,
+    paddingVertical: 10,
+    borderRadius: radius.sm,
+  },
+  tabBtnActive: {
+    backgroundColor: colors.primary,
+    ...shadow.subtle,
+  },
+  tabBtnText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: colors.textMuted,
+  },
+  tabBtnTextActive: {
+    color: '#fff',
+  },
+  tabBadge: {
+    backgroundColor: colors.surface,
+    borderRadius: radius.full,
+    minWidth: 18,
+    height: 18,
+    paddingHorizontal: 4,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  tabBadgeActive: {
+    backgroundColor: 'rgba(255,255,255,0.25)',
+  },
+  tabBadgeText: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: colors.primaryDark,
+  },
+  tabBadgeTextActive: {
+    color: '#fff',
+  },
   section: {
-    marginBottom: spacing.xl,
     backgroundColor: colors.surface,
     borderRadius: radius.lg,
     padding: spacing.lg,
     ...shadow.card,
-  },
-  sectionHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-    marginBottom: spacing.md,
-  },
-  sectionIconWrap: {
-    width: 30,
-    height: 30,
-    borderRadius: radius.md,
-    backgroundColor: colors.primaryLight,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  title: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: colors.text,
   },
   emptyState: {
     alignItems: 'center',
     paddingVertical: spacing.lg,
     gap: spacing.sm,
     marginBottom: spacing.sm,
+  },
+  emptyIconWrap: {
+    width: 52,
+    height: 52,
+    borderRadius: radius.full,
+    backgroundColor: colors.surfaceAlt,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   emptyText: {
     fontSize: 13,
@@ -434,25 +551,21 @@ const styles = StyleSheet.create({
   },
   itemCard: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'stretch',
     backgroundColor: colors.surfaceAlt,
     borderRadius: radius.md,
-    padding: spacing.md,
     marginBottom: spacing.sm,
     borderWidth: 1,
     borderColor: colors.border,
+    overflow: 'hidden',
   },
-  itemIconWrap: {
-    width: 36,
-    height: 36,
-    borderRadius: radius.md,
-    backgroundColor: colors.primaryLight,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: spacing.md,
+  itemColorBar: {
+    width: 6,
   },
   itemInfo: {
     flex: 1,
+    paddingVertical: spacing.md,
+    paddingLeft: spacing.md,
   },
   itemName: {
     fontSize: 14,
@@ -493,19 +606,21 @@ const styles = StyleSheet.create({
   },
   itemActions: {
     flexDirection: 'row',
+    alignItems: 'center',
     gap: spacing.xs,
+    paddingHorizontal: spacing.sm,
   },
   iconBtnEdit: {
-    width: 32,
-    height: 32,
+    width: 30,
+    height: 30,
     borderRadius: radius.full,
     backgroundColor: colors.infoLight,
     justifyContent: 'center',
     alignItems: 'center',
   },
   iconBtnDelete: {
-    width: 32,
-    height: 32,
+    width: 30,
+    height: 30,
     borderRadius: radius.full,
     backgroundColor: colors.dangerLight,
     justifyContent: 'center',
@@ -538,11 +653,28 @@ const styles = StyleSheet.create({
     color: colors.text,
     backgroundColor: colors.surface,
   },
+  inputFocused: {
+    borderColor: colors.primary,
+    borderWidth: 1.5,
+  },
   addFormBox: {
     marginTop: spacing.sm,
     paddingTop: spacing.md,
     borderTopWidth: 1,
     borderTopColor: colors.border,
+  },
+  addFormHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 2,
+  },
+  addFormHeaderText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: colors.primaryDark,
+    textTransform: 'uppercase',
+    letterSpacing: 0.3,
   },
   addBtn: {
     flexDirection: 'row',
