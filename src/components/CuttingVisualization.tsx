@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet, ScrollView } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
 import Svg, { Rect, Text as SvgText } from 'react-native-svg';
 import { CuttingLayout } from '../algorithm/packing';
 
@@ -27,96 +27,97 @@ export const CuttingVisualization: React.FC<CuttingVisualizationProps> = ({ layo
     );
   }
 
-  const scale = 0.3; // Escala para que quepa en pantalla
-
   return (
-    <ScrollView style={styles.container}>
-      {layouts.map((layout, layoutIndex) => (
-        <View key={layout.materialId} style={styles.layoutContainer}>
-          <Text style={styles.layoutTitle}>
-            Material {layoutIndex + 1}: {layout.name || layout.materialId}
-          </Text>
+    <View style={styles.container}>
+      {layouts.map((layout, layoutIndex) => {
+        const maxWidth = 350;
+        const maxHeight = 500;
+        const scaleX = maxWidth / layout.width;
+        const scaleY = maxHeight / layout.height;
+        const scale = Math.min(scaleX, scaleY, 1);
 
-          <Text style={styles.layoutInfo}>
-            Dimensiones: {layout.width}×{layout.height}mm | Desperdicio: {layout.wastePercentage.toFixed(1)}%
-          </Text>
+        return (
+          <View key={layout.materialId} style={styles.layoutContainer}>
+            <Text style={styles.layoutTitle}>
+              Material {layoutIndex + 1}: {layout.name || layout.materialId}
+            </Text>
 
-          <Svg
-            width={layout.width * scale}
-            height={layout.height * scale}
-            viewBox={`0 0 ${layout.width} ${layout.height}`}
-            style={styles.svg}
-          >
-            {/* Material background */}
-            <Rect
-              x="0"
-              y="0"
-              width={layout.width}
-              height={layout.height}
-              fill="#f0f0f0"
-              stroke="#333"
-              strokeWidth="2"
-            />
+            <Text style={styles.layoutInfo}>
+              Dimensiones: {layout.width}×{layout.height}mm | Desperdicio: {layout.wastePercentage.toFixed(1)}%
+            </Text>
 
-            {/* Cortes */}
-            {layout.placedCuts.map((cut, cutIndex) => {
-              const color = COLORS[cutIndex % COLORS.length];
-              return (
-                <g key={`${layout.materialId}-${cutIndex}`}>
-                  {/* Rectángulo del corte */}
-                  <Rect
-                    x={cut.x}
-                    y={cut.y}
-                    width={cut.width}
-                    height={cut.height}
-                    fill={color}
-                    stroke="#333"
-                    strokeWidth="1"
-                    opacity="0.7"
-                  />
+            <View style={styles.svgWrapper}>
+              <Svg
+                width={Math.min(layout.width * scale, 350)}
+                height={Math.min(layout.height * scale, 500)}
+                viewBox={`0 0 ${layout.width} ${layout.height}`}
+                style={styles.svg}
+              >
+                <Rect
+                  x="0"
+                  y="0"
+                  width={layout.width}
+                  height={layout.height}
+                  fill="#f0f0f0"
+                  stroke="#333"
+                  strokeWidth="2"
+                />
 
-                  {/* Texto con dimensiones */}
-                <SvgText
-                    x={cut.x + cut.width / 2}
-                    y={cut.y + cut.height / 2 + 5}
-                    textAnchor="middle"
-                    fontSize="10"
-                    fill="#000"
-                    fontWeight="bold"
-                  >
-                    {cut.width}×{cut.height}
-                  </SvgText>
-                </g>
-              );
-            })}
-          </Svg>
+                {layout.placedCuts.map((cut, cutIndex) => {
+                  const color = COLORS[cutIndex % COLORS.length];
+                  return (
+                    <g key={`${layout.materialId}-${cutIndex}`}>
+                      <Rect
+                        x={cut.x}
+                        y={cut.y}
+                        width={cut.width}
+                        height={cut.height}
+                        fill={color}
+                        stroke="#333"
+                        strokeWidth="1"
+                        opacity="0.7"
+                      />
 
-          {/* Lista de cortes en este material */}
-          <View style={styles.cutsList}>
-            <Text style={styles.cutsListTitle}>Cortes en este material:</Text>
-            {layout.placedCuts.map((cut, idx) => (
-              <Text key={idx} style={styles.cutListItem}>
-                • {cut.width}×{cut.height}mm
-              </Text>
-            ))}
+                      <SvgText
+                        x={cut.x + cut.width / 2}
+                        y={cut.y + cut.height / 2 + 5}
+                        textAnchor="middle"
+                        fontSize="10"
+                        fill="#000"
+                        fontWeight="bold"
+                      >
+                        {cut.width}×{cut.height}
+                      </SvgText>
+                    </g>
+                  );
+                })}
+              </Svg>
+            </View>
+
+            <View style={styles.cutsList}>
+              <Text style={styles.cutsListTitle}>Cortes en este material:</Text>
+              {layout.placedCuts.map((cut, idx) => (
+                <Text key={idx} style={styles.cutListItem}>
+                  • {cut.width}×{cut.height}mm
+                </Text>
+              ))}
+            </View>
           </View>
-        </View>
-      ))}
-    </ScrollView>
+        );
+      })}
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
-    flex: 1,
     padding: 16,
     backgroundColor: '#fff',
   },
   emptyContainer: {
-    flex: 1,
+    padding: 16,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 16,
   },
   emptyText: {
     fontSize: 16,
@@ -141,12 +142,15 @@ const styles = StyleSheet.create({
     color: '#666',
     marginBottom: 12,
   },
+  svgWrapper: {
+    alignItems: 'center',
+    marginBottom: 12,
+  },
   svg: {
     backgroundColor: 'white',
     borderWidth: 1,
     borderColor: '#ddd',
     borderRadius: 4,
-    marginBottom: 12,
   },
   cutsList: {
     backgroundColor: 'white',

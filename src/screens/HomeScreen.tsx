@@ -8,7 +8,6 @@ export const HomeScreen: React.FC = () => {
   const [cuts, setCuts] = useState<Cut[]>([]);
   const [materials, setMaterials] = useState<Material[]>([]);
   const [result, setResult] = useState<OptimizationResult | null>(null);
-  const [showVisualization, setShowVisualization] = useState(false);
 
   const handleOptimize = () => {
     if (cuts.length === 0) {
@@ -23,7 +22,6 @@ export const HomeScreen: React.FC = () => {
 
     const optimizationResult = optimizeCuts(cuts, materials);
     setResult(optimizationResult);
-    setShowVisualization(true);
 
     if (optimizationResult.success) {
       Alert.alert(
@@ -42,64 +40,56 @@ export const HomeScreen: React.FC = () => {
     setCuts([]);
     setMaterials([]);
     setResult(null);
-    setShowVisualization(false);
   };
 
   return (
     <View style={styles.container}>
-      {!showVisualization ? (
-        <ScrollView style={styles.content}>
-          <View style={styles.header}>
-            <Text style={styles.title}>🪵 Wood Cut Optimizer</Text>
-            <Text style={styles.subtitle}>Optimiza tus cortes de madera</Text>
-          </View>
-
-          <InputSection onCutsChange={setCuts} onMaterialsChange={setMaterials} />
-
-          <View style={styles.buttonsContainer}>
-            <TouchableOpacity onPress={handleOptimize} style={styles.optimizeBtn}>
-              <Text style={styles.optimizeBtnText}>Optimizar Cortes</Text>
-            </TouchableOpacity>
-
-            {(cuts.length > 0 || materials.length > 0) && (
-              <TouchableOpacity onPress={handleReset} style={styles.resetBtn}>
-                <Text style={styles.resetBtnText}>Limpiar Todo</Text>
-              </TouchableOpacity>
-            )}
-          </View>
-        </ScrollView>
-      ) : (
-        <View style={styles.resultContainer}>
-          <View style={styles.resultHeader}>
-            <Text style={styles.resultTitle}>Resultado de la Optimización</Text>
-            {result && (
-              <>
-                <Text style={styles.resultStat}>
-                  Cortes colocados: {result.cutsPlaced}/{result.cutsNeeded}
-                </Text>
-                <Text style={styles.resultStat}>
-                  Materiales utilizados: {result.materialsNeeded}/{result.materialsAvailable}
-                </Text>
-                <Text style={styles.resultStat}>
-                  Desperdicio total: {result.totalWaste.toFixed(1)}%
-                </Text>
-              </>
-            )}
-          </View>
-
-          {result && <CuttingVisualization layouts={result.layouts} />}
-
-          <View style={styles.resultButtons}>
-            <TouchableOpacity onPress={() => setShowVisualization(false)} style={styles.backBtn}>
-              <Text style={styles.backBtnText}>Atrás</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity onPress={handleReset} style={styles.resetBtn}>
-              <Text style={styles.resetBtnText}>Nuevo Proyecto</Text>
-            </TouchableOpacity>
-          </View>
+      <ScrollView style={styles.content}>
+        <View style={styles.header}>
+          <Text style={styles.title}>🪵 Wood Cut Optimizer</Text>
+          <Text style={styles.subtitle}>Optimiza tus cortes de madera</Text>
         </View>
-      )}
+
+        <InputSection
+          cuts={cuts}
+          materials={materials}
+          onCutsChange={setCuts}
+          onMaterialsChange={setMaterials}
+        />
+
+        <View style={styles.buttonsContainer}>
+          <TouchableOpacity onPress={handleOptimize} style={styles.optimizeBtn}>
+            <Text style={styles.optimizeBtnText}>
+              {result ? 'Re-optimizar' : 'Optimizar Cortes'}
+            </Text>
+          </TouchableOpacity>
+
+          {(cuts.length > 0 || materials.length > 0) && (
+            <TouchableOpacity onPress={handleReset} style={styles.resetBtn}>
+              <Text style={styles.resetBtnText}>Limpiar Todo</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+
+        {result && (
+          <View style={styles.resultSection}>
+            <View style={styles.resultHeader}>
+              <Text style={styles.resultTitle}>Resultado de la Optimización</Text>
+              <Text style={styles.resultStat}>
+                Cortes colocados: {result.cutsPlaced}/{result.cutsNeeded}
+              </Text>
+              <Text style={styles.resultStat}>
+                Materiales utilizados: {result.materialsNeeded}/{result.materialsAvailable}
+              </Text>
+              <Text style={styles.resultStat}>
+                Desperdicio total: {result.totalWaste.toFixed(1)}%
+              </Text>
+            </View>
+
+            <CuttingVisualization layouts={result.layouts} />
+          </View>
+        )}
+      </ScrollView>
     </View>
   );
 };
@@ -154,8 +144,8 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: 'bold',
   },
-  resultContainer: {
-    flex: 1,
+  resultSection: {
+    marginTop: 8,
   },
   resultHeader: {
     backgroundColor: '#2c3e50',
@@ -172,21 +162,5 @@ const styles = StyleSheet.create({
     color: '#bdc3c7',
     fontSize: 14,
     marginVertical: 4,
-  },
-  resultButtons: {
-    padding: 16,
-    flexDirection: 'row',
-    gap: 12,
-  },
-  backBtn: {
-    flex: 1,
-    backgroundColor: '#3498db',
-    paddingVertical: 12,
-    borderRadius: 8,
-    alignItems: 'center',
-  },
-  backBtnText: {
-    color: 'white',
-    fontWeight: 'bold',
   },
 });
