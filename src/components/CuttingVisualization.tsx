@@ -18,6 +18,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { CuttingLayout, PlacedCut, CutStep } from '../algorithm/packing';
 import { colors, spacing, radius, shadow } from '../theme/theme';
 import { colorForPiece, pieceKey } from '../utils/pieceColor';
+import { fromMm, unitSymbol } from '../utils/unitConversion';
 
 export interface CuttingVisualizationProps {
   layouts: CuttingLayout[];
@@ -244,7 +245,7 @@ const SheetCanvas: React.FC<SheetCanvasProps> = ({
                     stroke="rgba(0,0,0,0.45)"
                     strokeWidth={strokeW}
                   >
-                    {cut.originalWidth}×{cut.originalHeight}
+                    {fromMm(cut.originalWidth, cut.unit).toFixed(1)}×{fromMm(cut.originalHeight, cut.unit).toFixed(1)}{unitSymbol(cut.unit || 'mm')}
                   </SvgText>
                 </>
               )}
@@ -259,7 +260,7 @@ const SheetCanvas: React.FC<SheetCanvasProps> = ({
                   stroke="rgba(0,0,0,0.45)"
                   strokeWidth={strokeW}
                 >
-                  {cut.originalWidth}×{cut.originalHeight}
+                  {fromMm(cut.originalWidth, cut.unit).toFixed(1)}×{fromMm(cut.originalHeight, cut.unit).toFixed(1)}{unitSymbol(cut.unit || 'mm')}
                 </SvgText>
               )}
             </React.Fragment>
@@ -521,7 +522,7 @@ export const CuttingVisualization: React.FC<CuttingVisualizationProps> = ({ layo
           <View style={styles.detailGrid}>
             <DetailField
               label="Medidas"
-              value={`${selected.cut.originalWidth}×${selected.cut.originalHeight}mm${
+              value={`${fromMm(selected.cut.originalWidth, selected.cut.unit).toFixed(1)}×${fromMm(selected.cut.originalHeight, selected.cut.unit).toFixed(1)}${unitSymbol(selected.cut.unit || 'mm')}${
                 selected.cut.rotated ? ' (girado 90°)' : ''
               }`}
             />
@@ -606,14 +607,18 @@ export const CuttingVisualization: React.FC<CuttingVisualizationProps> = ({ layo
 
             <View style={styles.cutsList}>
               <Text style={styles.cutsListTitle}>Cortes en este material</Text>
-              {pieceSummary.map((item) => (
-                <View key={item.key} style={styles.cutListItem}>
-                  <View style={[styles.colorDot, { backgroundColor: item.color }]} />
-                  <Text style={styles.cutListText}>
-                    {item.name} · {item.width}×{item.height}mm · ×{item.count}
-                  </Text>
-                </View>
-              ))}
+              {pieceSummary.map((item) => {
+                const cut = layout.placedCuts.find((c) => c.originalWidth === item.width && c.originalHeight === item.height);
+                const unit = cut?.unit || 'mm';
+                return (
+                  <View key={item.key} style={styles.cutListItem}>
+                    <View style={[styles.colorDot, { backgroundColor: item.color }]} />
+                    <Text style={styles.cutListText}>
+                      {item.name} · {fromMm(item.width, unit).toFixed(1)}×{fromMm(item.height, unit).toFixed(1)}{unitSymbol(unit)} · ×{item.count}
+                    </Text>
+                  </View>
+                );
+              })}
             </View>
           </View>
         );

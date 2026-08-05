@@ -4,11 +4,13 @@ import { View, Text, TouchableOpacity, ScrollView, StyleSheet } from 'react-nati
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAppState } from '../context/AppStateContext';
-import { GrainDirection, Material } from '../algorithm/packing';
+import { GrainDirection, Material, Unit } from '../algorithm/packing';
 import { FormField } from '../components/FormField';
 import { ListItemCard } from '../components/ListItemCard';
 import { EmptyState } from '../components/EmptyState';
 import { GrainSelector } from '../components/GrainSelector';
+import { UnitSelector } from '../components/UnitSelector';
+import { toMm, fromMm, unitSymbol } from '../utils/unitConversion';
 import { colors, spacing, radius, shadow } from '../theme/theme';
 
 const PRESETS: { label: string; width: number; height: number }[] = [
@@ -23,9 +25,10 @@ interface DraftState {
   quantity: string;
   name: string;
   grain: GrainDirection;
+  unit: Unit;
 }
 
-const emptyDraft = (): DraftState => ({ width: '', height: '', quantity: '1', name: '', grain: 'none' });
+const emptyDraft = (): DraftState => ({ width: '', height: '', quantity: '1', name: '', grain: 'none', unit: 'mm' });
 
 const grainLabel = (g: GrainDirection) =>
   g === 'vertical' ? 'Veta vertical' : g === 'horizontal' ? 'Veta horizontal' : 'Sin veta definida';
@@ -43,13 +46,15 @@ export const InventoryScreen: React.FC = () => {
   };
 
   const startEdit = (mat: Material) => {
+    const unit = mat.unit || 'mm';
     setEditingId(mat.id);
     setDraft({
-      width: String(mat.width),
-      height: String(mat.height),
+      width: String(fromMm(mat.width, unit)),
+      height: String(fromMm(mat.height, unit)),
       quantity: String(mat.quantity),
       name: mat.name || '',
       grain: mat.grain || 'none',
+      unit,
     });
     setFormOpen(true);
   };
@@ -68,11 +73,12 @@ export const InventoryScreen: React.FC = () => {
     if (!draft.width || !draft.height || !draft.quantity) return;
     const payload: Material = {
       id: editingId || Date.now().toString(),
-      width: parseFloat(draft.width),
-      height: parseFloat(draft.height),
+      width: toMm(parseFloat(draft.width), draft.unit),
+      height: toMm(parseFloat(draft.height), draft.unit),
       quantity: parseInt(draft.quantity, 10) || 1,
       name: draft.name || `Placa ${materials.length + 1}`,
       grain: draft.grain,
+      unit: draft.unit,
     };
     if (editingId) {
       updateMaterial(editingId, payload);
@@ -115,6 +121,9 @@ export const InventoryScreen: React.FC = () => {
               ))}
             </View>
 
+            <Text style={styles.unitLabel}>Unidad de medida</Text>
+            <UnitSelector value={draft.unit} onChange={(u) => setDraft((d) => ({ ...d, unit: u }))} />
+
             <View style={styles.row}>
               <View style={{ flex: 1 }}>
                 <FormField
@@ -123,7 +132,7 @@ export const InventoryScreen: React.FC = () => {
                   onChangeText={(v) => setDraft((d) => ({ ...d, width: v }))}
                   keyboardType="decimal-pad"
                   placeholder="0"
-                  suffix="mm"
+                  suffix={unitSymbol(draft.unit)}
                 />
               </View>
               <View style={{ flex: 1 }}>
@@ -133,7 +142,7 @@ export const InventoryScreen: React.FC = () => {
                   onChangeText={(v) => setDraft((d) => ({ ...d, height: v }))}
                   keyboardType="decimal-pad"
                   placeholder="0"
-                  suffix="mm"
+                  suffix={unitSymbol(draft.unit)}
                 />
               </View>
               <View style={{ width: 78 }}>
@@ -180,20 +189,25 @@ export const InventoryScreen: React.FC = () => {
           />
         )}
 
-        {materials.map((mat) => (
-          <ListItemCard
-            key={mat.id}
-            color={colors.primary}
-            title={mat.name || 'Placa'}
-            badges={[
-              { icon: 'resize-outline', text: `${mat.width}×${mat.height}mm` },
-              { icon: undefined, text: `×${mat.quantity}`, tone: 'accent' },
-              { icon: 'git-commit-outline', text: grainLabel(mat.grain || 'none') },
-            ]}
-            onEdit={() => startEdit(mat)}
-            onRemove={() => removeMaterial(mat.id)}
-          />
-        ))}
+        {materials.map((mat) => {
+          const unit = mat.unit || 'mm';
+          const w = fromMm(mat.width, unit);
+          const h = fromMm(mat.height, unit);
+          return (
+            <ListItemCard
+              key={mat.id}
+              color={colors.primary}
+              title={mat.name || 'Placa'}
+              badges={[
+                { icon: 'resize-outline', text: `${w}×${h}${unitSymbol(unit)}` },
+                { icon: undefined, text: `×${mat.quantity}`, tone: 'accent' },
+                { icon: 'git-commit-outline', text: grainLabel(mat.grain || 'none') },
+              ]}
+              onEdit={() => startEdit(mat)}
+              onRemove={() => removeMaterial(mat.id)}
+            />
+          );
+        })}
       </ScrollView>
     </SafeAreaView>
   );
@@ -232,6 +246,7 @@ const styles = StyleSheet.create({
     ...shadow.card,
   },
   formTitle: { fontSize: 14, fontWeight: '700', color: colors.text, marginBottom: spacing.sm },
+  unitLabel: { fontSize: 11, fontWeight: '600', color: colors.textMuted, marginBottom: 6 },
 
   presetLabel: { fontSize: 11, fontWeight: '600', color: colors.textMuted, marginBottom: 6 },
   presetRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: spacing.md },

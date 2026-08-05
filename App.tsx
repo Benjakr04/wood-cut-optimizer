@@ -1,21 +1,24 @@
 //App.tsx
 import React from 'react';
-import { SafeAreaView, StyleSheet, StatusBar } from 'react-native';
-import { HomeScreen } from './src/screens/HomeScreen';
+import { StatusBar } from 'expo-status-bar';
+import { NavigationContainer } from '@react-navigation/native';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { RootNavigator } from './src/navigation/RootNavigator';
+import { AppStateProvider } from './src/context/AppStateContext';
 import { colors } from './src/theme/theme';
 
 export default function App() {
   return (
-    <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor={colors.dark} />
-      <HomeScreen />
-    </SafeAreaView>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <SafeAreaProvider>
+        <AppStateProvider>
+          <StatusBar style="light" />
+          <NavigationContainer>
+            <RootNavigator />
+          </NavigationContainer>
+        </AppStateProvider>
+      </SafeAreaProvider>
+    </GestureHandlerRootView>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.background,
-  },
-});
