@@ -1,3 +1,4 @@
+//packing.ts
 export interface Cut {
   id: string;
   width: number;
