@@ -1,10 +1,28 @@
+//packing.ts
+
+/**
+ * Dirección de la veta de un material (placa):
+ * - 'vertical'   -> la veta corre de arriba a abajo (paralela al lado "alto" de la placa)
+ * - 'horizontal' -> la veta corre de izquierda a derecha (paralela al lado "ancho" de la placa)
+ * - 'none'       -> no importa la veta: cualquier pieza puede rotarse libremente en esta placa
+ */
+export type GrainDirection = 'vertical' | 'horizontal' | 'none';
+
 export interface Cut {
   id: string;
   width: number;
   height: number;
   quantity: number;
   name?: string;
-  allowRotation?: boolean; // default true. Poné false si te importa la veta/dirección de la pieza
+  /**
+   * Si es true, esta pieza le importa la veta: su lado "Alto" (height, tal
+   * como lo ingresó el usuario) tiene que quedar SIEMPRE paralelo a la veta
+   * de la placa donde se corte. Si la placa tiene grain: 'none', esta
+   * restricción no aplica (no hay veta que respetar) y la pieza puede
+   * rotarse libremente igual que cualquier otra.
+   * Default: false (a esta pieza no le importa la veta, rota libre).
+   */
+  grainSensitive?: boolean;
 }
 
 export interface Material {
@@ -13,6 +31,8 @@ export interface Material {
   height: number;
   quantity: number;
   name?: string;
+  /** Dirección de la veta de este material. Default: 'none'. */
+  grain?: GrainDirection;
 }
 
 export interface PlacedCut {
@@ -26,6 +46,23 @@ export interface PlacedCut {
   originalHeight: number;
   rotated: boolean;
   materialId: string;
+  grainSensitive: boolean;
+}
+
+/**
+ * Un paso de corte físico: una línea recta de borde a borde (corte
+ * guillotina) que hay que hacer sobre la placa. Los pasos están numerados
+ * en el orden en que conviene hacerlos.
+ */
+export interface CutStep {
+  order: number;
+  orientation: 'horizontal' | 'vertical';
+  /** Coordenada fija del corte: Y si es horizontal, X si es vertical. */
+  position: number;
+  /** Extremos del corte a lo largo de la línea (en el otro eje). */
+  from: number;
+  to: number;
+  length: number;
 }
 
 export interface CuttingLayout {
@@ -33,7 +70,9 @@ export interface CuttingLayout {
   materialLabel: string;
   width: number;
   height: number;
+  grain: GrainDirection;
   placedCuts: PlacedCut[];
+  cutSteps: CutStep[];
   wastePercentage: number;
   name?: string;
 }
@@ -54,7 +93,7 @@ interface CutUnit {
   name: string;
   width: number;
   height: number;
-  allowRotation: boolean;
+  grainSensitive: boolean;
 }
 
 interface FreeRect {
@@ -70,8 +109,10 @@ interface Bin {
   materialName?: string;
   width: number;
   height: number;
+  grain: GrainDirection;
   freeRects: FreeRect[];
   placedCuts: PlacedCut[];
+  cutSteps: CutStep[];
 }
 
 interface MaterialUnit {
@@ -79,7 +120,14 @@ interface MaterialUnit {
   width: number;
   height: number;
   name?: string;
+  grain: GrainDirection;
   unitLabel: string;
+}
+
+interface Orientation {
+  w: number;
+  h: number;
+  rotated: boolean;
 }
 
 interface Placement {
@@ -98,7 +146,34 @@ interface PlacementScore {
   long: number;
 }
 
-const MIN_USABLE = 0.5; // mm — por debajo de esto, un rectángulo libre no sirve para nada
+const MIN_USABLE = 0.5; // mm — por debajo de esto, un rectángulo libre (o un corte) no sirve para nada
+
+/**
+ * Determina qué orientaciones están permitidas para una pieza sobre una
+ * placa con una determinada veta.
+ *
+ * Regla: si a la pieza le importa la veta (grainSensitive) y la placa TIENE
+ * una veta definida, el lado "height" de la pieza (el que el usuario definió
+ * como el que sigue la veta) tiene que quedar paralelo a esa veta:
+ *  - veta 'vertical'   -> sin rotar (height se mantiene vertical, igual que la veta)
+ *  - veta 'horizontal' -> forzosamente rotada 90° (height pasa a quedar horizontal)
+ * En cualquier otro caso (a la pieza no le importa la veta, o la placa no
+ * tiene veta definida) se permiten ambas orientaciones.
+ */
+function allowedOrientations(cut: { width: number; height: number; grainSensitive: boolean }, grain: GrainDirection): Orientation[] {
+  const normal: Orientation = { w: cut.width, h: cut.height, rotated: false };
+  const rotated: Orientation = { w: cut.height, h: cut.width, rotated: true };
+
+  if (cut.width === cut.height) {
+    return [normal];
+  }
+
+  if (!cut.grainSensitive || grain === 'none') {
+    return [normal, rotated];
+  }
+
+  return grain === 'vertical' ? [normal] : [rotated];
+}
 
 export function optimizeCuts(
   cuts: Cut[],
@@ -117,6 +192,7 @@ export function optimizeCuts(
         width: m.width,
         height: m.height,
         name: m.name,
+        grain: m.grain || 'none',
         unitLabel:
           m.quantity > 1
             ? `${m.name || 'Material'} (${i + 1}/${m.quantity})`
@@ -136,16 +212,16 @@ export function optimizeCuts(
     warnings,
   };
 
-  // Detectar cortes que no entran en NINGÚN material (ni rotados)
+  // Detectar cortes que no entran en NINGÚN material (ni rotados, ni respetando veta)
   if (materials.length > 0) {
-    const maxMatW = Math.max(...materials.map((m) => m.width));
-    const maxMatH = Math.max(...materials.map((m) => m.height));
     cuts.forEach((cut) => {
-      const fitsNormal = cut.width <= maxMatW && cut.height <= maxMatH;
-      const fitsRotated = cut.height <= maxMatW && cut.width <= maxMatH;
-      if (!fitsNormal && !fitsRotated) {
+      const cutUnitLike = { width: cut.width, height: cut.height, grainSensitive: !!cut.grainSensitive };
+      const fitsSomewhere = materials.some((m) => pieceFitsSheet(cutUnitLike, m.width, m.height, m.grain || 'none'));
+      if (!fitsSomewhere) {
         warnings.push(
-          `El corte "${cut.name || 'sin nombre'}" (${cut.width}×${cut.height}mm) no entra en ningún material disponible.`
+          `El corte "${cut.name || 'sin nombre'}" (${cut.width}×${cut.height}mm) no entra en ningún material disponible${
+            cut.grainSensitive ? ' respetando la veta' : ''
+          }.`
         );
       }
     });
@@ -160,7 +236,7 @@ export function optimizeCuts(
         name: cut.name || 'Corte',
         width: cut.width,
         height: cut.height,
-        allowRotation: cut.allowRotation !== false,
+        grainSensitive: !!cut.grainSensitive,
       });
     }
   });
@@ -183,7 +259,7 @@ export function optimizeCuts(
 
     // Ningún bin abierto tiene lugar: abrimos la próxima placa que le entre a esta pieza
     const materialIndex = materialQueue.findIndex((m) =>
-      pieceFitsSheet(cut, m.width, m.height)
+      pieceFitsSheet(cut, m.width, m.height, m.grain)
     );
 
     if (materialIndex === -1) {
@@ -197,8 +273,10 @@ export function optimizeCuts(
       materialName: material.name,
       width: material.width,
       height: material.height,
+      grain: material.grain,
       freeRects: [{ x: 0, y: 0, w: material.width, h: material.height }],
       placedCuts: [],
+      cutSteps: [],
     };
     bins.push(newBin);
 
@@ -221,7 +299,9 @@ export function optimizeCuts(
       materialLabel: bin.materialLabel,
       width: bin.width,
       height: bin.height,
+      grain: bin.grain,
       placedCuts: bin.placedCuts,
+      cutSteps: bin.cutSteps,
       wastePercentage,
       name: bin.materialName,
     });
@@ -245,10 +325,13 @@ export function optimizeCuts(
   return result;
 }
 
-function pieceFitsSheet(cut: CutUnit, sheetW: number, sheetH: number): boolean {
-  const fitsNormal = cut.width <= sheetW && cut.height <= sheetH;
-  const fitsRotated = cut.allowRotation && cut.height <= sheetW && cut.width <= sheetH;
-  return fitsNormal || fitsRotated;
+function pieceFitsSheet(
+  cut: { width: number; height: number; grainSensitive: boolean },
+  sheetW: number,
+  sheetH: number,
+  grain: GrainDirection
+): boolean {
+  return allowedOrientations(cut, grain).some((o) => o.w <= sheetW && o.h <= sheetH);
 }
 
 // Calcula el "costo" de poner una pieza w×h en un rectángulo libre `free`.
@@ -291,7 +374,8 @@ function findBestPlacement(bins: Bin[], cut: CutUnit, kerf: number): Placement |
   return best;
 }
 
-// Busca la mejor posición dentro de UN bin, probando rotación si está permitida
+// Busca la mejor posición dentro de UN bin, probando las orientaciones que
+// la veta de esa placa le permite a la pieza.
 function findBestPlacementInBin(
   bin: Bin,
   cut: CutUnit,
@@ -300,14 +384,9 @@ function findBestPlacementInBin(
   let best: Omit<Placement, 'binIndex'> | null = null;
   let bestScore: PlacementScore | null = null;
 
-  bin.freeRects.forEach((free, freeRectIndex) => {
-    const orientations: Array<{ w: number; h: number; rotated: boolean }> = [
-      { w: cut.width, h: cut.height, rotated: false },
-    ];
-    if (cut.allowRotation && cut.width !== cut.height) {
-      orientations.push({ w: cut.height, h: cut.width, rotated: true });
-    }
+  const orientations = allowedOrientations(cut, bin.grain);
 
+  bin.freeRects.forEach((free, freeRectIndex) => {
     orientations.forEach((o) => {
       if (o.w > free.w || o.h > free.h) return;
       const score = scorePlacement(free, o.w, o.h);
@@ -328,7 +407,9 @@ function findBestPlacementInBin(
   return best;
 }
 
-// Coloca la pieza en el bin y parte el rectángulo libre usado en 2 nuevos (corte guillotina)
+// Coloca la pieza en el bin, parte el rectángulo libre usado en 2 nuevos
+// (corte guillotina) y registra los pasos de corte físicos que hay que
+// hacer para lograrlo.
 function applyPlacement(bin: Bin, cut: CutUnit, placement: Placement, kerf: number): void {
   const free = bin.freeRects[placement.freeRectIndex];
 
@@ -343,6 +424,7 @@ function applyPlacement(bin: Bin, cut: CutUnit, placement: Placement, kerf: numb
     originalHeight: cut.height,
     rotated: placement.rotated,
     materialId: bin.materialId,
+    grainSensitive: cut.grainSensitive,
   });
 
   const usedW = placement.placedWidth + kerf;
@@ -351,12 +433,57 @@ function applyPlacement(bin: Bin, cut: CutUnit, placement: Placement, kerf: numb
   const leftoverH = free.h - usedH;
 
   const newRects: FreeRect[] = [];
+  const pushStep = (step: Omit<CutStep, 'order'>) => {
+    if (step.length > MIN_USABLE) {
+      bin.cutSteps.push({ ...step, order: bin.cutSteps.length + 1 });
+    }
+  };
 
-  // Regla del eje más corto: partimos por el eje que deja el sobrante más chico
+  // Regla del eje más corto: partimos por el eje que deja el sobrante más chico.
+  // Cada partición del rectángulo libre corresponde a UN corte real de borde
+  // a borde sobre lo que queda de esa sección de la placa (corte guillotina).
   if (leftoverW <= leftoverH) {
+    // 1) corte horizontal que separa la franja de arriba (donde va la pieza)
+    //    del sobrante de abajo, a lo ancho de todo el rectángulo libre.
+    pushStep({
+      orientation: 'horizontal',
+      position: free.y + usedH,
+      from: free.x,
+      to: free.x + free.w,
+      length: free.w,
+    });
+    // 2) corte vertical dentro de la franja de arriba, que separa la pieza
+    //    del sobrante a su derecha.
+    pushStep({
+      orientation: 'vertical',
+      position: free.x + usedW,
+      from: free.y,
+      to: free.y + usedH,
+      length: usedH,
+    });
+
     newRects.push({ x: free.x, y: free.y + usedH, w: free.w, h: free.h - usedH });
     newRects.push({ x: free.x + usedW, y: free.y, w: free.w - usedW, h: usedH });
   } else {
+    // 1) corte vertical que separa la franja izquierda (donde va la pieza)
+    //    del sobrante de la derecha, a todo el alto del rectángulo libre.
+    pushStep({
+      orientation: 'vertical',
+      position: free.x + usedW,
+      from: free.y,
+      to: free.y + free.h,
+      length: free.h,
+    });
+    // 2) corte horizontal dentro de la franja izquierda, que separa la pieza
+    //    del sobrante debajo suyo.
+    pushStep({
+      orientation: 'horizontal',
+      position: free.y + usedH,
+      from: free.x,
+      to: free.x + usedW,
+      length: usedW,
+    });
+
     newRects.push({ x: free.x + usedW, y: free.y, w: free.w - usedW, h: free.h });
     newRects.push({ x: free.x, y: free.y + usedH, w: usedW, h: free.h - usedH });
   }

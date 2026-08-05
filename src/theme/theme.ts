@@ -43,6 +43,11 @@ export const colors = {
   warningLight: '#FBEEDA',
   info: '#3B6FA6',
   infoLight: '#E3EDF6',
+
+  // Veta / grain — usado en los selectores e íconos de dirección de veta
+  grainLine: '#9C5430',
+  grainActiveBg: '#C2703D',
+  grainInactiveBg: '#EFE9E0',
 };
 
 // Paleta para las piezas del plano de corte. 10 colores bien diferenciados
@@ -124,4 +129,5 @@ export const gradients = {
   header: ['#2E2822', '#1A1613'] as const,
   primaryButton: ['#D07C46', '#B25E30'] as const,
   darkCard: ['#3A322B', '#26211D'] as const,
+  accentButton: ['#7DA184', '#5C7F62'] as const,
 };

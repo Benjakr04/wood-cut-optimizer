@@ -1,3 +1,4 @@
+//CuttingVisualization.tsx
 import React, { useMemo, useState } from 'react';
 import {
   View,
@@ -7,13 +8,14 @@ import {
   Modal,
   ScrollView,
   Dimensions,
+  useWindowDimensions,
   SafeAreaView,
   Pressable,
 } from 'react-native';
 import type { GestureResponderEvent } from 'react-native';
-import Svg, { Rect, Text as SvgText, Line } from 'react-native-svg';
+import Svg, { Rect, Text as SvgText, Line, Circle } from 'react-native-svg';
 import { Ionicons } from '@expo/vector-icons';
-import { CuttingLayout, PlacedCut } from '../algorithm/packing';
+import { CuttingLayout, PlacedCut, CutStep } from '../algorithm/packing';
 import { colors, spacing, radius, shadow } from '../theme/theme';
 import { colorForPiece, pieceKey } from '../utils/pieceColor';
 
@@ -35,9 +37,6 @@ interface PieceTypeSummary {
   color: string;
   count: number;
 }
-
-const CARD_CANVAS_WIDTH = 300;
-const CARD_CANVAS_HEIGHT = 380;
 
 // Elige un paso de grilla "prolijo" (10, 20, 25, 50, 100mm, etc.) según el
 // tamaño de la placa, para que siempre se vean entre 4 y 8 líneas de referencia.
@@ -81,6 +80,12 @@ function summarizeLayout(layout: CuttingLayout): PieceTypeSummary[] {
   return Array.from(map.values());
 }
 
+function grainLabel(grain: CuttingLayout['grain']): string | null {
+  if (grain === 'vertical') return 'Veta ↕';
+  if (grain === 'horizontal') return 'Veta ↔';
+  return null;
+}
+
 /* ---------- Canvas SVG reutilizable (tarjeta chica y pantalla completa) ---------- */
 
 interface SheetCanvasProps {
@@ -88,6 +93,7 @@ interface SheetCanvasProps {
   canvasWidth: number;
   canvasHeight: number;
   selectedKey: string | null;
+  showSteps: boolean;
   onSelect: (cut: PlacedCut, color: string) => void;
 }
 
@@ -96,6 +102,7 @@ const SheetCanvas: React.FC<SheetCanvasProps> = ({
   canvasWidth,
   canvasHeight,
   selectedKey,
+  showSteps,
   onSelect,
 }) => {
   const scale = Math.min(canvasWidth / layout.width, canvasHeight / layout.height, 1);
@@ -111,9 +118,8 @@ const SheetCanvas: React.FC<SheetCanvasProps> = ({
   // Detectamos qué pieza se tocó por coordenadas, en vez de poner onPress
   // en cada elemento del SVG. react-native-svg resuelve onPress en los
   // primitivos (Rect/Text) con un sistema de touch viejo y deprecado que en
-  // Web tira warnings y a veces rompe ("Cannot find single active touch").
-  // Un solo Pressable + hit-testing evita ese problema por completo y
-  // funciona igual en iOS, Android y Web.
+  // Web tira warnings y a veces rompe. Un solo Pressable + hit-testing evita
+  // ese problema por completo y funciona igual en iOS, Android y Web.
   const handlePress = (event: GestureResponderEvent) => {
     const { locationX, locationY } = event.nativeEvent;
     const sheetX = locationX / scale;
@@ -131,6 +137,17 @@ const SheetCanvas: React.FC<SheetCanvasProps> = ({
     }
   };
 
+  // Tamaños de fuente pensados para que el texto se vea SIEMPRE del mismo
+  // tamaño en pantalla (en píxeles), sin importar cuán grande sea la placa
+  // ni cuánto se haya reducido el dibujo para que entre en la tarjeta.
+  // Como el SVG usa viewBox en milímetros, "tamaño en mm" x "scale" = px.
+  const nameFontPx = 13.5;
+  const dimsFontPx = 12;
+  const fontSizeName = nameFontPx / scale;
+  const fontSizeDims = dimsFontPx / scale;
+  const strokeW = 2.4 / scale;
+  const gLabel = grainLabel(layout.grain);
+
   return (
     <Pressable onPress={handlePress} style={{ width: renderW, height: renderH }}>
       <Svg width={renderW} height={renderH} viewBox={`0 0 ${layout.width} ${layout.height}`}>
@@ -144,107 +161,201 @@ const SheetCanvas: React.FC<SheetCanvasProps> = ({
           strokeWidth={2 / scale}
         />
 
-      {gridLinesX.map((x) => (
-        <Line
-          key={`gx-${x}`}
-          x1={x}
-          y1={0}
-          x2={x}
-          y2={layout.height}
-          stroke={colors.borderStrong}
-          strokeWidth={1 / scale}
-          strokeDasharray={`${3 / scale},${3 / scale}`}
-        />
-      ))}
-      {gridLinesY.map((y) => (
-        <Line
-          key={`gy-${y}`}
-          x1={0}
-          y1={y}
-          x2={layout.width}
-          y2={y}
-          stroke={colors.borderStrong}
-          strokeWidth={1 / scale}
-          strokeDasharray={`${3 / scale},${3 / scale}`}
-        />
-      ))}
+        {gridLinesX.map((x) => (
+          <Line
+            key={`gx-${x}`}
+            x1={x}
+            y1={0}
+            x2={x}
+            y2={layout.height}
+            stroke={colors.borderStrong}
+            strokeWidth={1 / scale}
+            strokeDasharray={`${3 / scale},${3 / scale}`}
+          />
+        ))}
+        {gridLinesY.map((y) => (
+          <Line
+            key={`gy-${y}`}
+            x1={0}
+            y1={y}
+            x2={layout.width}
+            y2={y}
+            stroke={colors.borderStrong}
+            strokeWidth={1 / scale}
+            strokeDasharray={`${3 / scale},${3 / scale}`}
+          />
+        ))}
 
-      {layout.placedCuts.map((cut, idx) => {
-        const color = colorForPiece(cut.name, cut.originalWidth, cut.originalHeight);
-        const isSelected = selectedKey === selectionKey(cut);
-        const renderedW = cut.width * scale;
-        const renderedH = cut.height * scale;
-        const showTwoLines = renderedW >= 44 && renderedH >= 32;
-        const showOneLine = !showTwoLines && renderedW >= 26 && renderedH >= 16;
-        const fontSizeName = Math.min(12, 12 / scale);
-        const fontSizeDims = Math.min(10.5, 10.5 / scale);
+        {layout.placedCuts.map((cut, idx) => {
+          const color = colorForPiece(cut.name, cut.originalWidth, cut.originalHeight);
+          const isSelected = selectedKey === selectionKey(cut);
+          const renderedW = cut.width * scale;
+          const renderedH = cut.height * scale;
+          const showTwoLines = renderedW >= 50 && renderedH >= 40;
+          const showOneLine = !showTwoLines && renderedW >= 28 && renderedH >= 18;
 
-        return (
-          <React.Fragment key={`${layout.materialId}-${idx}`}>
-            <Rect
-              x={cut.x}
-              y={cut.y}
-              width={cut.width}
-              height={cut.height}
-              rx={2 / scale}
-              fill={color}
-              stroke={isSelected ? colors.dark : 'rgba(0,0,0,0.28)'}
-              strokeWidth={isSelected ? 3 / scale : 1 / scale}
-            />
-            {isSelected && (
+          return (
+            <React.Fragment key={`${layout.materialId}-${idx}`}>
               <Rect
-                x={cut.x + 2 / scale}
-                y={cut.y + 2 / scale}
-                width={Math.max(0, cut.width - 4 / scale)}
-                height={Math.max(0, cut.height - 4 / scale)}
-                rx={1.5 / scale}
-                fill="none"
-                stroke="#FFFFFF"
-                strokeWidth={1.5 / scale}
-                strokeDasharray={`${3 / scale},${3 / scale}`}
+                x={cut.x}
+                y={cut.y}
+                width={cut.width}
+                height={cut.height}
+                rx={2 / scale}
+                fill={color}
+                stroke={isSelected ? colors.dark : 'rgba(0,0,0,0.28)'}
+                strokeWidth={isSelected ? 3 / scale : 1 / scale}
               />
-            )}
-            {showTwoLines && (
-              <>
+              {isSelected && (
+                <Rect
+                  x={cut.x + 2 / scale}
+                  y={cut.y + 2 / scale}
+                  width={Math.max(0, cut.width - 4 / scale)}
+                  height={Math.max(0, cut.height - 4 / scale)}
+                  rx={1.5 / scale}
+                  fill="none"
+                  stroke="#FFFFFF"
+                  strokeWidth={1.5 / scale}
+                  strokeDasharray={`${3 / scale},${3 / scale}`}
+                />
+              )}
+              {showTwoLines && (
+                <>
+                  <SvgText
+                    x={cut.x + cut.width / 2}
+                    y={cut.y + cut.height / 2 - fontSizeDims / 2}
+                    textAnchor="middle"
+                    fontSize={fontSizeName}
+                    fontWeight="800"
+                    fill="#fff"
+                    stroke="rgba(0,0,0,0.45)"
+                    strokeWidth={strokeW}
+                  >
+                    {cut.rotated ? '↻ ' : ''}
+                    {cut.name}
+                  </SvgText>
+                  <SvgText
+                    x={cut.x + cut.width / 2}
+                    y={cut.y + cut.height / 2 + fontSizeDims + 2 / scale}
+                    textAnchor="middle"
+                    fontSize={fontSizeDims}
+                    fontWeight="700"
+                    fill="#fff"
+                    stroke="rgba(0,0,0,0.45)"
+                    strokeWidth={strokeW}
+                  >
+                    {cut.originalWidth}×{cut.originalHeight}
+                  </SvgText>
+                </>
+              )}
+              {showOneLine && (
                 <SvgText
                   x={cut.x + cut.width / 2}
-                  y={cut.y + cut.height / 2 - 2 / scale}
-                  textAnchor="middle"
-                  fontSize={fontSizeName}
-                  fontWeight="700"
-                  fill="#fff"
-                >
-                  {cut.rotated ? '↻ ' : ''}
-                  {cut.name}
-                </SvgText>
-                <SvgText
-                  x={cut.x + cut.width / 2}
-                  y={cut.y + cut.height / 2 + fontSizeDims + 2 / scale}
+                  y={cut.y + cut.height / 2 + fontSizeDims / 3}
                   textAnchor="middle"
                   fontSize={fontSizeDims}
-                  fill="rgba(255,255,255,0.85)"
+                  fontWeight="800"
+                  fill="#fff"
+                  stroke="rgba(0,0,0,0.45)"
+                  strokeWidth={strokeW}
                 >
                   {cut.originalWidth}×{cut.originalHeight}
                 </SvgText>
-              </>
-            )}
-            {showOneLine && (
-              <SvgText
-                x={cut.x + cut.width / 2}
-                y={cut.y + cut.height / 2 + fontSizeDims / 3}
-                textAnchor="middle"
-                fontSize={fontSizeDims}
-                fontWeight="700"
-                fill="#fff"
-              >
-                {cut.originalWidth}×{cut.originalHeight}
-              </SvgText>
-            )}
-          </React.Fragment>
-        );
-      })}
+              )}
+            </React.Fragment>
+          );
+        })}
+
+        {showSteps &&
+          layout.cutSteps.map((step) => {
+            const isHorizontal = step.orientation === 'horizontal';
+            const x1 = isHorizontal ? step.from : step.position;
+            const y1 = isHorizontal ? step.position : step.from;
+            const x2 = isHorizontal ? step.to : step.position;
+            const y2 = isHorizontal ? step.position : step.to;
+            const midX = (x1 + x2) / 2;
+            const midY = (y1 + y2) / 2;
+            const badgeR = 9 / scale;
+            const stepColor = isHorizontal ? colors.info : colors.primaryDark;
+            return (
+              <React.Fragment key={`step-${step.order}`}>
+                <Line
+                  x1={x1}
+                  y1={y1}
+                  x2={x2}
+                  y2={y2}
+                  stroke={stepColor}
+                  strokeWidth={2.2 / scale}
+                  strokeDasharray={`${6 / scale},${4 / scale}`}
+                />
+                <Circle cx={midX} cy={midY} r={badgeR} fill={stepColor} stroke="#fff" strokeWidth={1.2 / scale} />
+                <SvgText
+                  x={midX}
+                  y={midY + 3.4 / scale}
+                  textAnchor="middle"
+                  fontSize={10.5 / scale}
+                  fontWeight="800"
+                  fill="#fff"
+                >
+                  {step.order}
+                </SvgText>
+              </React.Fragment>
+            );
+          })}
+
+        {gLabel && (
+          <>
+            <Rect x={6 / scale} y={6 / scale} width={54 / scale} height={20 / scale} rx={4 / scale} fill="rgba(38,33,29,0.72)" />
+            <SvgText
+              x={33 / scale}
+              y={20 / scale}
+              textAnchor="middle"
+              fontSize={11 / scale}
+              fontWeight="700"
+              fill="#fff"
+            >
+              {gLabel}
+            </SvgText>
+          </>
+        )}
       </Svg>
     </Pressable>
+  );
+};
+
+/* ---------- Lista de pasos de corte en texto ---------- */
+
+const CutStepsList: React.FC<{ steps: CutStep[] }> = ({ steps }) => {
+  if (steps.length === 0) return null;
+  return (
+    <View style={styles.stepsList}>
+      <View style={styles.stepsListHeader}>
+        <Ionicons name="list-outline" size={14} color={colors.primaryDark} />
+        <Text style={styles.stepsListTitle}>Pasos de corte ({steps.length})</Text>
+      </View>
+      {steps.map((step) => (
+        <View key={step.order} style={styles.stepRow}>
+          <View
+            style={[
+              styles.stepBadge,
+              { backgroundColor: step.orientation === 'horizontal' ? colors.info : colors.primaryDark },
+            ]}
+          >
+            <Text style={styles.stepBadgeText}>{step.order}</Text>
+          </View>
+          <Ionicons
+            name={step.orientation === 'horizontal' ? 'remove-outline' : 'reorder-four-outline'}
+            size={13}
+            color={colors.textMuted}
+          />
+          <Text style={styles.stepText}>
+            Corte {step.orientation === 'horizontal' ? 'horizontal' : 'vertical'} en{' '}
+            {step.orientation === 'horizontal' ? 'Y' : 'X'} = {Math.round(step.position)}mm
+            {'  '}(largo: {Math.round(step.length)}mm)
+          </Text>
+        </View>
+      ))}
+    </View>
   );
 };
 
@@ -253,11 +364,12 @@ const SheetCanvas: React.FC<SheetCanvasProps> = ({
 interface FullScreenLayoutProps {
   layout: CuttingLayout;
   selectedKey: string | null;
+  showSteps: boolean;
   onSelect: (cut: PlacedCut, color: string) => void;
   onClose: () => void;
 }
 
-const FullScreenLayout: React.FC<FullScreenLayoutProps> = ({ layout, selectedKey, onSelect, onClose }) => {
+const FullScreenLayout: React.FC<FullScreenLayoutProps> = ({ layout, selectedKey, showSteps, onSelect, onClose }) => {
   const window = Dimensions.get('window');
   const fitScale = Math.min(
     (window.width - 32) / layout.width,
@@ -268,22 +380,22 @@ const FullScreenLayout: React.FC<FullScreenLayoutProps> = ({ layout, selectedKey
   const canvasHeight = layout.height * scale;
 
   return (
-    <SafeAreaView style={styles.fullScreenContainer}>
-      <View style={styles.fullScreenHeader}>
+    <SafeAreaView style={fsStyles.container}>
+      <View style={fsStyles.header}>
         <View style={{ flex: 1 }}>
-          <Text style={styles.fullScreenTitle} numberOfLines={1}>
+          <Text style={fsStyles.title} numberOfLines={1}>
             {layout.materialLabel}
           </Text>
-          <Text style={styles.fullScreenSubtitle}>
+          <Text style={fsStyles.subtitle}>
             {layout.width}×{layout.height}mm
           </Text>
         </View>
-        <TouchableOpacity onPress={onClose} style={styles.fullScreenCloseBtn} hitSlop={10}>
+        <TouchableOpacity onPress={onClose} style={fsStyles.closeBtn} hitSlop={10}>
           <Ionicons name="close" size={22} color={colors.textOnDark} />
         </TouchableOpacity>
       </View>
       <ScrollView
-        contentContainerStyle={styles.fullScreenScrollContent}
+        contentContainerStyle={fsStyles.scrollContent}
         maximumZoomScale={3}
         minimumZoomScale={1}
         centerContent
@@ -293,10 +405,11 @@ const FullScreenLayout: React.FC<FullScreenLayoutProps> = ({ layout, selectedKey
           canvasWidth={canvasWidth}
           canvasHeight={canvasHeight}
           selectedKey={selectedKey}
+          showSteps={showSteps}
           onSelect={onSelect}
         />
       </ScrollView>
-      <Text style={styles.fullScreenHint}>Pellizcá para hacer zoom · Tocá una pieza para ver el detalle</Text>
+      <Text style={fsStyles.hint}>Pellizcá para hacer zoom · Tocá una pieza para ver el detalle</Text>
     </SafeAreaView>
   );
 };
@@ -304,8 +417,14 @@ const FullScreenLayout: React.FC<FullScreenLayoutProps> = ({ layout, selectedKey
 /* ---------- Componente principal ---------- */
 
 export const CuttingVisualization: React.FC<CuttingVisualizationProps> = ({ layouts }) => {
+  const { width: windowWidth } = useWindowDimensions();
   const [selected, setSelected] = useState<SelectedInfo | null>(null);
   const [expandedIndex, setExpandedIndex] = useState<number | null>(null);
+  const [showSteps, setShowSteps] = useState(false);
+  const [expandedSteps, setExpandedSteps] = useState<Record<string, boolean>>({});
+
+  const cardCanvasWidth = Math.min(360, windowWidth - spacing.lg * 2 - spacing.md * 2 - spacing.sm * 2);
+  const cardCanvasHeight = cardCanvasWidth * 1.25;
 
   const globalLegend = useMemo(() => {
     const map = new Map<string, PieceTypeSummary>();
@@ -343,7 +462,11 @@ export const CuttingVisualization: React.FC<CuttingVisualizationProps> = ({ layo
     setSelected({ cut, materialLabel, color });
   };
 
+  const toggleSteps = (materialId: string) =>
+    setExpandedSteps((prev) => ({ ...prev, [materialId]: !prev[materialId] }));
+
   const selectedKey = selected ? selectionKey(selected.cut) : null;
+  const totalSteps = layouts.reduce((sum, l) => sum + l.cutSteps.length, 0);
 
   return (
     <View style={styles.container}>
@@ -371,6 +494,19 @@ export const CuttingVisualization: React.FC<CuttingVisualizationProps> = ({ layo
         </View>
       )}
 
+      {totalSteps > 0 && (
+        <TouchableOpacity
+          style={[styles.stepsToggle, showSteps && styles.stepsToggleActive]}
+          onPress={() => setShowSteps((v) => !v)}
+          activeOpacity={0.85}
+        >
+          <Ionicons name="git-network-outline" size={16} color={showSteps ? '#fff' : colors.primaryDark} />
+          <Text style={[styles.stepsToggleText, showSteps && styles.stepsToggleTextActive]}>
+            {showSteps ? 'Ocultar pasos de corte en el plano' : 'Mostrar pasos de corte en el plano'}
+          </Text>
+        </TouchableOpacity>
+      )}
+
       {selected && (
         <View style={styles.detailCard}>
           <View style={styles.detailHeader}>
@@ -395,6 +531,9 @@ export const CuttingVisualization: React.FC<CuttingVisualizationProps> = ({ layo
             />
             <DetailField label="Posición" value={`X: ${selected.cut.x} / Y: ${selected.cut.y}`} />
             <DetailField label="Material" value={selected.materialLabel} />
+            {selected.cut.grainSensitive && (
+              <DetailField label="Veta" value="Esta pieza respeta la veta de la placa" />
+            )}
           </View>
         </View>
       )}
@@ -402,6 +541,7 @@ export const CuttingVisualization: React.FC<CuttingVisualizationProps> = ({ layo
       {layouts.map((layout, layoutIndex) => {
         const tone = wasteTone(layout.wastePercentage);
         const pieceSummary = summarizeLayout(layout);
+        const stepsOpen = !!expandedSteps[layout.materialId];
 
         return (
           <View key={layout.materialId} style={styles.layoutCard}>
@@ -415,6 +555,7 @@ export const CuttingVisualization: React.FC<CuttingVisualizationProps> = ({ layo
                 </Text>
                 <Text style={styles.layoutInfo}>
                   {layout.width}×{layout.height}mm
+                  {grainLabel(layout.grain) ? ` · ${grainLabel(layout.grain)}` : ''}
                 </Text>
               </View>
               <View style={[styles.wasteBadge, { backgroundColor: tone.bg }]}>
@@ -428,9 +569,10 @@ export const CuttingVisualization: React.FC<CuttingVisualizationProps> = ({ layo
             <View style={styles.canvasFrame}>
               <SheetCanvas
                 layout={layout}
-                canvasWidth={CARD_CANVAS_WIDTH}
-                canvasHeight={CARD_CANVAS_HEIGHT}
+                canvasWidth={cardCanvasWidth}
+                canvasHeight={cardCanvasHeight}
                 selectedKey={selectedKey}
+                showSteps={showSteps}
                 onSelect={(cut, color) => handleSelect(cut, layout.materialLabel, color)}
               />
             </View>
@@ -447,6 +589,20 @@ export const CuttingVisualization: React.FC<CuttingVisualizationProps> = ({ layo
               <Ionicons name="scan-outline" size={14} color={colors.primaryDark} />
               <Text style={styles.expandBtnText}>Ver en pantalla completa</Text>
             </TouchableOpacity>
+
+            {layout.cutSteps.length > 0 && (
+              <TouchableOpacity
+                style={styles.stepsCollapseBtn}
+                onPress={() => toggleSteps(layout.materialId)}
+                activeOpacity={0.85}
+              >
+                <Ionicons name={stepsOpen ? 'chevron-up-outline' : 'chevron-down-outline'} size={14} color={colors.textMuted} />
+                <Text style={styles.stepsCollapseBtnText}>
+                  {stepsOpen ? 'Ocultar' : 'Ver'} pasos de corte de esta placa ({layout.cutSteps.length})
+                </Text>
+              </TouchableOpacity>
+            )}
+            {stepsOpen && <CutStepsList steps={layout.cutSteps} />}
 
             <View style={styles.cutsList}>
               <Text style={styles.cutsListTitle}>Cortes en este material</Text>
@@ -472,6 +628,7 @@ export const CuttingVisualization: React.FC<CuttingVisualizationProps> = ({ layo
           <FullScreenLayout
             layout={layouts[expandedIndex]}
             selectedKey={selectedKey}
+            showSteps={showSteps}
             onSelect={(cut, color) => handleSelect(cut, layouts[expandedIndex].materialLabel, color)}
             onClose={() => setExpandedIndex(null)}
           />
@@ -499,56 +656,38 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: spacing.sm,
   },
-  emptyText: {
-    fontSize: 14,
-    color: colors.textMuted,
-  },
+  emptyText: { fontSize: 14, color: colors.textMuted },
 
   legendCard: {
     backgroundColor: colors.surface,
     borderRadius: radius.lg,
     padding: spacing.md,
-    marginBottom: spacing.lg,
+    marginBottom: spacing.md,
     borderWidth: 1,
     borderColor: colors.border,
     ...shadow.subtle,
   },
-  legendHeader: {
+  legendHeader: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: spacing.sm },
+  legendTitle: { fontSize: 12, fontWeight: '700', color: colors.text },
+  legendGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
+  legendItem: { flexDirection: 'row', alignItems: 'center', gap: 6, width: '47%' },
+  legendDot: { width: 12, height: 12, borderRadius: 4 },
+  legendName: { fontSize: 11, fontWeight: '700', color: colors.text },
+  legendDims: { fontSize: 10, color: colors.textMuted },
+
+  stepsToggle: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
     gap: 6,
-    marginBottom: spacing.sm,
+    backgroundColor: colors.primaryLight,
+    borderRadius: radius.md,
+    paddingVertical: 10,
+    marginBottom: spacing.md,
   },
-  legendTitle: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: colors.text,
-  },
-  legendGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: spacing.sm,
-  },
-  legendItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    width: '47%',
-  },
-  legendDot: {
-    width: 12,
-    height: 12,
-    borderRadius: 4,
-  },
-  legendName: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: colors.text,
-  },
-  legendDims: {
-    fontSize: 10,
-    color: colors.textMuted,
-  },
+  stepsToggleActive: { backgroundColor: colors.primaryDark },
+  stepsToggleText: { fontSize: 12.5, fontWeight: '700', color: colors.primaryDark },
+  stepsToggleTextActive: { color: '#fff' },
 
   detailCard: {
     backgroundColor: colors.dark,
@@ -557,45 +696,13 @@ const styles = StyleSheet.create({
     marginBottom: spacing.lg,
     ...shadow.raised,
   },
-  detailHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-    marginBottom: spacing.md,
-  },
-  detailColorDot: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-  },
-  detailTitle: {
-    flex: 1,
-    fontSize: 15,
-    fontWeight: '700',
-    color: colors.textOnDark,
-  },
-  detailGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: spacing.sm,
-  },
-  detailField: {
-    width: '47%',
-    backgroundColor: colors.darkAlt,
-    borderRadius: radius.sm,
-    padding: spacing.sm,
-  },
-  detailFieldLabel: {
-    fontSize: 10,
-    color: colors.textOnDarkMuted,
-    fontWeight: '600',
-    marginBottom: 2,
-  },
-  detailFieldValue: {
-    fontSize: 13,
-    color: colors.textOnDark,
-    fontWeight: '700',
-  },
+  detailHeader: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginBottom: spacing.md },
+  detailColorDot: { width: 12, height: 12, borderRadius: 6 },
+  detailTitle: { flex: 1, fontSize: 15, fontWeight: '700', color: colors.textOnDark },
+  detailGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
+  detailField: { width: '47%', backgroundColor: colors.darkAlt, borderRadius: radius.sm, padding: spacing.sm },
+  detailFieldLabel: { fontSize: 10, color: colors.textOnDarkMuted, fontWeight: '600', marginBottom: 2 },
+  detailFieldValue: { fontSize: 13, color: colors.textOnDark, fontWeight: '700' },
 
   layoutCard: {
     marginBottom: spacing.lg,
@@ -604,12 +711,7 @@ const styles = StyleSheet.create({
     padding: spacing.md,
     ...shadow.card,
   },
-  layoutHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-    marginBottom: spacing.md,
-  },
+  layoutHeader: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginBottom: spacing.md },
   layoutIconWrap: {
     width: 32,
     height: 32,
@@ -618,47 +720,14 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  layoutTitle: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: colors.text,
-  },
-  layoutInfo: {
-    fontSize: 12,
-    color: colors.textMuted,
-    marginTop: 2,
-  },
-  wasteBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: radius.full,
-  },
-  wasteBadgeText: {
-    fontSize: 11,
-    fontWeight: '700',
-  },
+  layoutTitle: { fontSize: 14, fontWeight: '700', color: colors.text },
+  layoutInfo: { fontSize: 12, color: colors.textMuted, marginTop: 2 },
+  wasteBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 4, borderRadius: radius.full },
+  wasteBadgeText: { fontSize: 11, fontWeight: '700' },
 
-  canvasFrame: {
-    alignItems: 'center',
-    backgroundColor: colors.surfaceAlt,
-    borderRadius: radius.md,
-    padding: spacing.sm,
-  },
-  dimRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingHorizontal: spacing.xs,
-    marginTop: spacing.xs,
-    marginBottom: spacing.sm,
-  },
-  dimRowText: {
-    fontSize: 10,
-    color: colors.textMuted,
-    fontWeight: '600',
-  },
+  canvasFrame: { alignItems: 'center', backgroundColor: colors.surfaceAlt, borderRadius: radius.md, padding: spacing.sm },
+  dimRow: { flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: spacing.xs, marginTop: spacing.xs, marginBottom: spacing.sm },
+  dimRowText: { fontSize: 10, color: colors.textMuted, fontWeight: '600' },
 
   expandBtn: {
     flexDirection: 'row',
@@ -668,62 +737,46 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primaryLight,
     paddingVertical: 9,
     borderRadius: radius.md,
-    marginBottom: spacing.md,
+    marginBottom: spacing.sm,
   },
-  expandBtnText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: colors.primaryDark,
-  },
+  expandBtnText: { fontSize: 12, fontWeight: '700', color: colors.primaryDark },
 
-  cutsList: {
+  stepsCollapseBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 8,
+    marginBottom: spacing.sm,
+  },
+  stepsCollapseBtnText: { fontSize: 11.5, fontWeight: '700', color: colors.textMuted },
+
+  stepsList: {
     backgroundColor: colors.surfaceAlt,
     borderRadius: radius.md,
     padding: spacing.md,
+    marginBottom: spacing.md,
   },
-  cutsListTitle: {
-    fontSize: 12,
-    fontWeight: '700',
-    marginBottom: spacing.sm,
-    color: colors.text,
-  },
-  cutListItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-    paddingVertical: 3,
-  },
-  colorDot: {
-    width: 9,
-    height: 9,
-    borderRadius: 4,
-  },
-  cutListText: {
-    fontSize: 12,
-    color: colors.textMuted,
-  },
+  stepsListHeader: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: spacing.sm },
+  stepsListTitle: { fontSize: 12, fontWeight: '700', color: colors.text },
+  stepRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, paddingVertical: 4 },
+  stepBadge: { width: 18, height: 18, borderRadius: radius.full, justifyContent: 'center', alignItems: 'center' },
+  stepBadgeText: { fontSize: 10, fontWeight: '800', color: '#fff' },
+  stepText: { flex: 1, fontSize: 11.5, color: colors.text },
 
-  fullScreenContainer: {
-    flex: 1,
-    backgroundColor: colors.dark,
-  },
-  fullScreenHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.md,
-  },
-  fullScreenTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: colors.textOnDark,
-  },
-  fullScreenSubtitle: {
-    fontSize: 12,
-    color: colors.textOnDarkMuted,
-    marginTop: 2,
-  },
-  fullScreenCloseBtn: {
+  cutsList: { backgroundColor: colors.surfaceAlt, borderRadius: radius.md, padding: spacing.md },
+  cutsListTitle: { fontSize: 12, fontWeight: '700', marginBottom: spacing.sm, color: colors.text },
+  cutListItem: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingVertical: 3 },
+  colorDot: { width: 9, height: 9, borderRadius: 4 },
+  cutListText: { fontSize: 12, color: colors.textMuted },
+});
+
+const fsStyles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: colors.dark },
+  header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: spacing.lg, paddingVertical: spacing.md },
+  title: { fontSize: 16, fontWeight: '700', color: colors.textOnDark },
+  subtitle: { fontSize: 12, color: colors.textOnDarkMuted, marginTop: 2 },
+  closeBtn: {
     width: 34,
     height: 34,
     borderRadius: radius.full,
@@ -731,17 +784,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  fullScreenScrollContent: {
-    flexGrow: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: spacing.lg,
-  },
-  fullScreenHint: {
-    textAlign: 'center',
-    fontSize: 11,
-    color: colors.textOnDarkMuted,
-    paddingBottom: spacing.lg,
-    fontStyle: 'italic',
-  },
+  scrollContent: { flexGrow: 1, justifyContent: 'center', alignItems: 'center', padding: spacing.lg },
+  hint: { textAlign: 'center', fontSize: 11, color: colors.textOnDarkMuted, paddingBottom: spacing.lg, fontStyle: 'italic' },
 });
