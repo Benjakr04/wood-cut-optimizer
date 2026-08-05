@@ -6,7 +6,11 @@
  * - 'horizontal' -> la veta corre de izquierda a derecha (paralela al lado "ancho" de la placa)
  * - 'none'       -> no importa la veta: cualquier pieza puede rotarse libremente en esta placa
  */
+
 export type GrainDirection = 'vertical' | 'horizontal' | 'none';
+
+/** Unidad de medida. Internamente todo se guarda en mm. */
+export type Unit = 'mm' | 'cm' | 'm';
 
 export interface Cut {
   id: string;
@@ -23,6 +27,8 @@ export interface Cut {
    * Default: false (a esta pieza no le importa la veta, rota libre).
    */
   grainSensitive?: boolean;
+  /** Unidad de medida original que cargó el usuario. Default: 'mm'. */
+  unit?: Unit;
 }
 
 export interface Material {
@@ -33,6 +39,8 @@ export interface Material {
   name?: string;
   /** Dirección de la veta de este material. Default: 'none'. */
   grain?: GrainDirection;
+  /** Unidad de medida original que cargó el usuario. Default: 'mm'. */
+  unit?: Unit;
 }
 
 export interface PlacedCut {
@@ -42,11 +50,12 @@ export interface PlacedCut {
   y: number;
   width: number;       // ancho ocupado en la placa (ya considerando si se rotó)
   height: number;      // alto ocupado en la placa (ya considerando si se rotó)
-  originalWidth: number;  // medidas tal cual las cargó el usuario
-  originalHeight: number;
+  originalWidth: number;  // medidas tal cual las cargó el usuario (en mm)
+  originalHeight: number; // medidas tal cual las cargó el usuario (en mm)
   rotated: boolean;
   materialId: string;
   grainSensitive: boolean;
+  unit?: Unit;         // unidad original del corte
 }
 
 /**
@@ -94,6 +103,7 @@ interface CutUnit {
   width: number;
   height: number;
   grainSensitive: boolean;
+  unit: Unit;
 }
 
 interface FreeRect {
@@ -237,6 +247,7 @@ export function optimizeCuts(
         width: cut.width,
         height: cut.height,
         grainSensitive: !!cut.grainSensitive,
+        unit: cut.unit || 'mm',
       });
     }
   });
@@ -425,6 +436,7 @@ function applyPlacement(bin: Bin, cut: CutUnit, placement: Placement, kerf: numb
     rotated: placement.rotated,
     materialId: bin.materialId,
     grainSensitive: cut.grainSensitive,
+    unit: cut.unit,
   });
 
   const usedW = placement.placedWidth + kerf;

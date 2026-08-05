@@ -3,7 +3,9 @@
     "name": "wood-cut-optimizer",
     "slug": "wood-cut-optimizer",
     "version": "1.0.0",
-    "assetBundlePatterns": ["**/*"],
+    "assetBundlePatterns": [
+      "**/*"
+    ],
     "extra": {
       "eas": {
         "projectId": "76fbaff5-dfde-4f66-af86-d8bdc55bfab8"
@@ -11,10 +13,15 @@
     },
     "ios": {
       "bundleIdentifier": "com.benjisniper.woodcutoptimizer",
-      "infoPlist": { "ITSAppUsesNonExemptEncryption": false }
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "package": "com.benjisniper.woodcutoptimizer"
-    }
+    },
+    "plugins": [
+      "expo-status-bar"
+    ]
   }
 }

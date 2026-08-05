@@ -4,11 +4,13 @@ import { View, Text, TouchableOpacity, ScrollView, StyleSheet, Switch } from 're
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAppState } from '../context/AppStateContext';
-import { Cut } from '../algorithm/packing';
+import { Cut, Unit } from '../algorithm/packing';
 import { FormField } from '../components/FormField';
 import { ListItemCard } from '../components/ListItemCard';
 import { EmptyState } from '../components/EmptyState';
+import { UnitSelector } from '../components/UnitSelector';
 import { colorForPiece } from '../utils/pieceColor';
+import { toMm, fromMm, unitSymbol } from '../utils/unitConversion';
 import { colors, spacing, radius, shadow } from '../theme/theme';
 
 const letterName = (index: number): string => {
@@ -27,9 +29,10 @@ interface DraftState {
   quantity: string;
   name: string;
   grainSensitive: boolean;
+  unit: Unit;
 }
 
-const emptyDraft = (): DraftState => ({ width: '', height: '', quantity: '1', name: '', grainSensitive: false });
+const emptyDraft = (): DraftState => ({ width: '', height: '', quantity: '1', name: '', grainSensitive: false, unit: 'mm' });
 
 export const CutsScreen: React.FC = () => {
   const { cuts, addCut, updateCut, removeCut } = useAppState();
@@ -44,13 +47,15 @@ export const CutsScreen: React.FC = () => {
   };
 
   const startEdit = (cut: Cut) => {
+    const unit = cut.unit || 'mm';
     setEditingId(cut.id);
     setDraft({
-      width: String(cut.width),
-      height: String(cut.height),
+      width: String(fromMm(cut.width, unit)),
+      height: String(fromMm(cut.height, unit)),
       quantity: String(cut.quantity),
       name: cut.name || '',
       grainSensitive: !!cut.grainSensitive,
+      unit,
     });
     setFormOpen(true);
   };
@@ -65,11 +70,12 @@ export const CutsScreen: React.FC = () => {
     if (!draft.width || !draft.height || !draft.quantity) return;
     const payload: Cut = {
       id: editingId || Date.now().toString(),
-      width: parseFloat(draft.width),
-      height: parseFloat(draft.height),
+      width: toMm(parseFloat(draft.width), draft.unit),
+      height: toMm(parseFloat(draft.height), draft.unit),
       quantity: parseInt(draft.quantity, 10) || 1,
       name: draft.name || letterName(cuts.length),
       grainSensitive: draft.grainSensitive,
+      unit: draft.unit,
     };
     if (editingId) {
       updateCut(editingId, payload);
@@ -97,6 +103,9 @@ export const CutsScreen: React.FC = () => {
         {formOpen && (
           <View style={styles.formCard}>
             <Text style={styles.formTitle}>{editingId ? 'Editar pieza' : 'Nueva pieza'}</Text>
+            <Text style={styles.unitLabel}>Unidad de medida</Text>
+            <UnitSelector value={draft.unit} onChange={(u) => setDraft((d) => ({ ...d, unit: u }))} />
+
             <View style={styles.row}>
               <View style={{ flex: 1 }}>
                 <FormField
@@ -105,7 +114,7 @@ export const CutsScreen: React.FC = () => {
                   onChangeText={(v) => setDraft((d) => ({ ...d, width: v }))}
                   keyboardType="decimal-pad"
                   placeholder="0"
-                  suffix="mm"
+                  suffix={unitSymbol(draft.unit)}
                 />
               </View>
               <View style={{ flex: 1 }}>
@@ -115,7 +124,7 @@ export const CutsScreen: React.FC = () => {
                   onChangeText={(v) => setDraft((d) => ({ ...d, height: v }))}
                   keyboardType="decimal-pad"
                   placeholder="0"
-                  suffix="mm"
+                  suffix={unitSymbol(draft.unit)}
                 />
               </View>
               <View style={{ width: 78 }}>
@@ -170,20 +179,25 @@ export const CutsScreen: React.FC = () => {
           />
         )}
 
-        {cuts.map((cut) => (
-          <ListItemCard
-            key={cut.id}
-            color={colorForPiece(cut.name || '', cut.width, cut.height)}
-            title={cut.name || 'Corte'}
-            badges={[
-              { icon: 'resize-outline', text: `${cut.width}×${cut.height}mm` },
-              { icon: undefined, text: `×${cut.quantity}`, tone: 'accent' },
-              ...(cut.grainSensitive ? [{ icon: 'git-commit-outline' as const, text: 'Sigue la veta' }] : []),
-            ]}
-            onEdit={() => startEdit(cut)}
-            onRemove={() => removeCut(cut.id)}
-          />
-        ))}
+        {cuts.map((cut) => {
+          const unit = cut.unit || 'mm';
+          const w = fromMm(cut.width, unit);
+          const h = fromMm(cut.height, unit);
+          return (
+            <ListItemCard
+              key={cut.id}
+              color={colorForPiece(cut.name || '', cut.width, cut.height)}
+              title={cut.name || 'Corte'}
+              badges={[
+                { icon: 'resize-outline', text: `${w}×${h}${unitSymbol(unit)}` },
+                { icon: undefined, text: `×${cut.quantity}`, tone: 'accent' },
+                ...(cut.grainSensitive ? [{ icon: 'git-commit-outline' as const, text: 'Sigue la veta' }] : []),
+              ]}
+              onEdit={() => startEdit(cut)}
+              onRemove={() => removeCut(cut.id)}
+            />
+          );
+        })}
       </ScrollView>
     </SafeAreaView>
   );
@@ -222,6 +236,7 @@ const styles = StyleSheet.create({
     ...shadow.card,
   },
   formTitle: { fontSize: 14, fontWeight: '700', color: colors.text, marginBottom: spacing.sm },
+  unitLabel: { fontSize: 11, fontWeight: '600', color: colors.textMuted, marginBottom: 6 },
   row: { flexDirection: 'row', gap: spacing.sm },
 
   grainRow: {
