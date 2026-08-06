@@ -128,7 +128,7 @@ export const CutsScreen: React.FC = () => {
   };
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <ScreenContainer style={styles.container}>
       <KeyboardAvoidingView
         style={{ flex: 1 }}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
@@ -275,7 +275,7 @@ export const CutsScreen: React.FC = () => {
           </View>
         )}
       </KeyboardAvoidingView>
-    </SafeAreaView>
+    </ScreenContainer>
   );
 };
 
