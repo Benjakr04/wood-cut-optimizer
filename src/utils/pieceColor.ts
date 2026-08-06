@@ -1,4 +1,4 @@
-//pieceColor.ts
+//src/utils/pieceColor.ts
 import { cutPalette } from '../theme/theme';
 
 // Hash simple y determinístico: el mismo string siempre da el mismo número.

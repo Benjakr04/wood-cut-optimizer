@@ -1,11 +1,11 @@
-//HomeScreen.tsx
+//src/screens/HomeScreen.tsx
 import React from 'react';
 import { View, Text, TouchableOpacity, ScrollView, StyleSheet, Alert } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { ScreenContainer } from '../components/ScreenContainer';
 import { useAppState } from '../context/AppStateContext';
 import { colors, spacing, radius, shadow, gradients } from '../theme/theme';
 import type { RootTabParamList } from '../navigation/RootNavigator';
@@ -49,7 +49,7 @@ export const HomeScreen: React.FC = () => {
   };
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <ScreenContainer style={styles.container}>
       <ScrollView showsVerticalScrollIndicator={false}>
         <LinearGradient colors={gradients.header} style={styles.header}>
           <View style={styles.headerIconWrap}>
@@ -144,7 +144,7 @@ export const HomeScreen: React.FC = () => {
           )}
         </View>
       </ScrollView>
-    </SafeAreaView>
+    </ScreenContainer>
   );
 };
 
