@@ -1,4 +1,4 @@
-// theme.ts
+// src/theme/theme.ts
 // Paleta "taller de carpintería": tonos cálidos de madera para la UI,
 // y una paleta saturada y distinguible para las piezas del plano de corte
 // (así cada corte se reconoce a simple vista, en cualquier tamaño de pantalla).
@@ -48,6 +48,13 @@ export const colors = {
   grainLine: '#9C5430',
   grainActiveBg: '#C2703D',
   grainInactiveBg: '#EFE9E0',
+    // Guía de corte paso a paso
+  stepActive: '#C43D3D',                   // el corte que estás por hacer
+  stepDone: '#2E8B57',                     // cortes ya hechos
+  stepPanelFill: 'rgba(201,138,30,0.20)',  // panel resaltado
+  stepPanelStroke: '#C98A1E',
+  offcutFill: 'rgba(122,113,104,0.16)',    // sobrante reutilizable
+  offcutStroke: '#A79C8E',
 };
 
 // Paleta para las piezas del plano de corte. 10 colores bien diferenciados

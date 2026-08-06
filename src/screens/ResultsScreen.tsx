@@ -1,11 +1,11 @@
-//ResultsScreen.tsx
+//src/screens/ResultsScreen.tsx
 import React from 'react';
 import { View, Text, ScrollView, StyleSheet, TouchableOpacity } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { ScreenContainer } from '../components/ScreenContainer';
 import { useAppState } from '../context/AppStateContext';
 import { CuttingVisualization } from '../components/CuttingVisualization';
 import { EmptyState } from '../components/EmptyState';
@@ -18,7 +18,7 @@ export const ResultsScreen: React.FC = () => {
 
   if (!result) {
     return (
-      <SafeAreaView style={styles.container} edges={['top']}>
+      <ScreenContainer style={styles.container}>
         <View style={styles.centeredContent}>
           <EmptyState
             icon="stats-chart-outline"
@@ -30,7 +30,7 @@ export const ResultsScreen: React.FC = () => {
             <Text style={styles.goHomeBtnText}>Ir a Inicio</Text>
           </TouchableOpacity>
         </View>
-      </SafeAreaView>
+      </ScreenContainer>
     );
   }
 
@@ -38,7 +38,7 @@ export const ResultsScreen: React.FC = () => {
   const canReoptimize = cuts.length > 0 && materials.length > 0;
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <ScreenContainer style={styles.container}>
       <ScrollView showsVerticalScrollIndicator={false}>
         <LinearGradient colors={gradients.darkCard} style={styles.resultHeader}>
           <View style={styles.resultTitleRow}>
@@ -83,7 +83,7 @@ export const ResultsScreen: React.FC = () => {
 
         <CuttingVisualization layouts={result.layouts} />
       </ScrollView>
-    </SafeAreaView>
+    </ScreenContainer>
   );
 };
 
